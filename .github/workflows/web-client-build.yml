@@ -1,0 +1,68 @@
+name: Build RustDesk Web Client Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Build Web Preview
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Prepare web dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y wget npm
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: stable
+          flutter-version: "3.24.5"
+
+      - name: Patch Flutter
+        shell: bash
+        run: |
+          cd "$(dirname "$(dirname "$(which flutter)")")"
+          git apply "$GITHUB_WORKSPACE/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+
+      - name: Prepare and build web client
+        shell: bash
+        run: |
+          pushd flutter/web/js
+          npm install yarn -g
+          npm install typescript -g
+          npm install protoc -g
+          npm install ts-proto
+          npm install vite@2.8
+          yarn install
+          yarn build
+          popd
+
+          pushd flutter/web
+          wget https://github.com/rustdesk/doc.rustdesk.com/releases/download/console/web_deps.tar.gz
+          tar xzf web_deps.tar.gz
+          popd
+
+          pushd flutter
+          flutter build web --release
+          cd build
+          cp ../web/README.md web
+          # Keep upstream's notice that the web client is not feature complete.
+          echo -e "\n\nThis build is for preview and not full functionality." >> web/README.md
+          zip -r "$GITHUB_WORKSPACE/rustdesk-web-preview.zip" web
+          popd
+
+      - name: Upload web preview
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rustdesk-web-preview.zip
+          path: rustdesk-web-preview.zip
+          if-no-files-found: error
