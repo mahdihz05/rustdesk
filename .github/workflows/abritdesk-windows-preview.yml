@@ -13,6 +13,10 @@ env:
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
+concurrency:
+  group: abritdesk-windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -69,6 +73,17 @@ jobs:
           cd $(dirname $(dirname $(which flutter)))
           git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
+      - name: Validate AbrIT Dart code and control contracts
+        shell: pwsh
+        working-directory: flutter
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "Flutter dependency resolution failed" }
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/abrit lib/desktop/pages/connection_page.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/desktop_tab_page.dart lib/desktop/pages/desktop_setting_page.dart lib/desktop/widgets/tabbar_widget.dart lib/common/widgets/peer_card.dart lib/common/widgets/peers_view.dart lib/mobile/widgets/dialog.dart test/abrit
+          if ($LASTEXITCODE -ne 0) { throw "AbrIT Dart analysis failed" }
+          flutter test test/abrit/control_contract_test.dart
+          if ($LASTEXITCODE -ne 0) { throw "AbrIT control contract tests failed" }
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
@@ -102,6 +117,22 @@ jobs:
             throw "Preview executable was not produced"
           }
           Rename-Item ".\flutter\build\windows\x64\runner\Release\rustdesk.exe" "abritDesk.exe"
+          $release = ".\flutter\build\windows\x64\runner\Release"
+          Get-ChildItem $release -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLower())  $($_.Path.Substring((Resolve-Path $release).Path.Length + 1))"
+          } | Set-Content "$release\SHA256SUMS.txt" -Encoding UTF8
+
+      - name: Capture native Windows Home preview
+        shell: pwsh
+        run: ./.github/scripts/abritdesk-ui-smoke.ps1
+
+      - name: Upload native UI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-windows-ui-qa
+          path: abritdesk-qa/
+          if-no-files-found: ignore
 
       - name: Upload Windows preview
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
