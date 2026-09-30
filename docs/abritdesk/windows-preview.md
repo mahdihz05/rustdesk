@@ -28,6 +28,8 @@ Windows x64 selects only its required legacy bridge through an optional reusable
 
 Remaining manual checks: portable installation/elevation; installed and lower-version upgrade; two actual clients connecting through the AbrIT server/key; copy/password visibility/refresh; Settings/Printer/History actions; light/dark and Windows DPI; language/system-language persistence; offline/404/expired promotion behavior; restart and retained server policy.
 
+Native dependency caching uses vcpkg's file archive provider with pinned actions/cache v5. The removed x-gha provider and the older run-vcpkg internal cache (which returned HTTP 400) are disabled. Package ABI validation remains vcpkg's responsibility; the cache key includes the dependency manifest and overlays.
+
 ## Regression surface
 
 - `src/lib.rs`, `src/core_main.rs`, `src/flutter_ffi.rs`: Windows-only product initialization hook, needed before service/client startup.
