@@ -24,7 +24,7 @@ GET `update`: schema 1, semantic version strings, blocked_versions, force_after,
 
 ## Validation
 
-Windows workflow runs scoped Dart analysis, control-contract tests, native x64 compilation and produces `abritdesk-windows-x64-preview` with SHA256SUMS.txt. It attempts native Home captures at 1200x860 and 900x700 in `abritdesk-windows-ui-qa`. A headless/black capture is not evidence of visual success. Read smoke.json and inspect captures. No full connection or install success is claimed solely from compilation.
+Windows x64 selects only its required legacy bridge through an optional reusable-workflow input; all other callers keep the existing two-version matrix. Windows workflow runs scoped Dart analysis, control-contract tests, native x64 compilation and produces `abritdesk-windows-x64-preview` with SHA256SUMS.txt. It attempts native Home captures at 1200x860 and 900x700 in `abritdesk-windows-ui-qa`. A headless/black capture is not evidence of visual success. Read smoke.json and inspect captures. No full connection or install success is claimed solely from compilation.
 
 Remaining manual checks: portable installation/elevation; installed and lower-version upgrade; two actual clients connecting through the AbrIT server/key; copy/password visibility/refresh; Settings/Printer/History actions; light/dark and Windows DPI; language/system-language persistence; offline/404/expired promotion behavior; restart and retained server policy.
 

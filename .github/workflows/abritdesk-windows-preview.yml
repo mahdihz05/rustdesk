@@ -20,6 +20,8 @@ concurrency:
 jobs:
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
+    with:
+      legacy-only: true
 
   windows-x64-preview:
     name: Windows x64 preview
