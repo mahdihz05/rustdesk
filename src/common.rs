@@ -2308,6 +2308,30 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
     ThrottledInterval::new(i)
 }
 
+pub fn load_abritdesk_defaults() {
+    // ABRIT V1 preview: keep the self-hosted rendezvous/relay server and public key
+    // centrally defined. OVERWRITE_SETTINGS makes these values authoritative and
+    // read-only in the UI, matching the custom-client policy behavior.
+    const ABRIT_SERVER: &str = "serverdesk.abrit.cloud";
+    const ABRIT_PUBLIC_KEY: &str =
+        "XDQrtTIvt+ISB6Zp8iqpjNpwmjRmkfpLHilOsBmrZHM=";
+
+    {
+        let mut settings = config::OVERWRITE_SETTINGS.write().unwrap();
+        settings.insert(
+            "custom-rendezvous-server".to_owned(),
+            ABRIT_SERVER.to_owned(),
+        );
+        settings.insert("relay-server".to_owned(), ABRIT_SERVER.to_owned());
+        settings.insert("key".to_owned(), ABRIT_PUBLIC_KEY.to_owned());
+        // RustDesk's built-in API Server field is for RustDesk Server Pro.
+        // ABRIT's own control API will be integrated separately.
+        settings.insert("api-server".to_owned(), String::new());
+    }
+
+    *config::APP_NAME.write().unwrap() = "abritDesk".to_owned();
+}
+
 pub fn load_custom_client() {
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
