@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -90,7 +92,13 @@ class AbritHomeLayout extends StatelessWidget {
                                         height: 172,
                                         child: LayoutBuilder(
                                             builder: (context, constraints) =>
-                                                AbritPeerStyle(
+                                                Obx(() => AbritPeerStyle(
+                                                    active:
+                                                        Get.find<DesktopTabController>()
+                                                                .state
+                                                                .value
+                                                                .selected ==
+                                                            0,
                                                     cardWidth: ((constraints
                                                                     .maxWidth -
                                                                 24) /
@@ -98,7 +106,7 @@ class AbritHomeLayout extends StatelessWidget {
                                                         .clamp(220.0, 500.0),
                                                     child: RecentPeersView(
                                                         menuPadding:
-                                                            kDesktopMenuPadding)))),
+                                                            kDesktopMenuPadding))))),
                                   ])),
                               const SizedBox(height: 18),
                               const AbritPromotionBanner(),

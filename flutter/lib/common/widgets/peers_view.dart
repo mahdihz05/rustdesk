@@ -187,7 +187,8 @@ class _PeersViewState extends State<_PeersView>
       value: widget.peers,
       child: Consumer<Peers>(builder: (context, peers, child) {
         if (peers.peers.isEmpty) {
-          gFFI.peerTabModel.setCurrentTabCachedPeers([]);
+          if (AbritPeerStyle.maybeOf(context)?.active ?? true)
+            gFFI.peerTabModel.setCurrentTabCachedPeers([]);
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -237,7 +238,8 @@ class _PeersViewState extends State<_PeersView>
           if (snapshot.hasData) {
             var peers = snapshot.data!;
             if (peers.length > 1000) peers = peers.sublist(0, 1000);
-            gFFI.peerTabModel.setCurrentTabCachedPeers(peers);
+            if (AbritPeerStyle.maybeOf(context)?.active ?? true)
+              gFFI.peerTabModel.setCurrentTabCachedPeers(peers);
             buildOnePeer(Peer peer, bool isPortrait) {
               final visibilityChild = VisibilityDetector(
                 key: ValueKey(_cardId(peer.id)),
