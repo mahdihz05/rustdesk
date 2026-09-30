@@ -34,7 +34,8 @@ pub fn core_main() -> Option<Vec<String>> {
         return None;
     }
     crate::load_custom_client();
-    crate::load_abritdesk_defaults();
+    #[cfg(windows)]
+    crate::abritdesk::initialize();
     #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process

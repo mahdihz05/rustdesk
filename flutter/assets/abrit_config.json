@@ -1,0 +1,14 @@
+{
+  "app_name": "abritDesk",
+  "id_server": "serverdesk.abrit.cloud",
+  "relay_server": "serverdesk.abrit.cloud",
+  "public_key": "XDQrtTIvt+ISB6Zp8iqpjNpwmjRmkfpLHilOsBmrZHM=",
+  "api_base": "https://serverdesk.abrit.cloud/api/v1/",
+  "website": "https://abrit.ir",
+  "default_language": "fa",
+  "default_theme": "light",
+  "approved_hosts": [
+    "abrit.ir",
+    "serverdesk.abrit.cloud"
+  ]
+}
