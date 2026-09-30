@@ -200,6 +200,7 @@ class AbritConnectionActions extends StatelessWidget {
                   ))),
               OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Color(0xFF657FA4)),
                       padding: const EdgeInsets.symmetric(
