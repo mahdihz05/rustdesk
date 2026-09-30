@@ -4,7 +4,7 @@ Scope: Windows x64 on `feat/abritdesk-v1-preview`. No upstream sync, server/prot
 
 ## Profile and policy
 
-`flutter/assets/abrit_config.json` is the single non-secret product profile. Rust compiles it into `src/abritdesk.rs`; Flutter reads it for control API origins. Rust's existing `OVERWRITE_SETTINGS` enforces ID/relay/key and an empty Pro API value. Defaults apply to portable, installed and service processes. The first-run marker preserves later language/theme choices, including selecting the system language. Non-Windows clients retain upstream startup behavior.
+`flutter/assets/abrit_config.json` is the single non-secret product profile. Rust compiles it into `src/abritdesk.rs` and reapplies it after Windows bootstrap and Flutter FFI initialization; Flutter reads it for control API origins. Rust's existing `OVERWRITE_SETTINGS` enforces ID/relay/key and an empty Pro API value. Defaults apply to portable, installed and service processes. The first-run marker preserves later language/theme choices, including selecting the system language. Non-Windows clients retain upstream startup behavior.
 
 The Network page shows read-only effective values before its existing privilege lock. Its dialog also prevents edits/import for this product. Existing admin permission mechanisms remain responsible for other network switches.
 
@@ -30,7 +30,7 @@ Remaining manual checks: portable installation/elevation; installed and lower-ve
 
 ## Regression surface
 
-- `src/lib.rs`, `src/core_main.rs`: Windows-only product initialization hook, needed before service/client startup.
+- `src/lib.rs`, `src/core_main.rs`, `src/flutter_ffi.rs`: Windows-only product initialization hook, needed before service/client startup.
 - `src/common.rs`: remove the former scattered product constants and prevent upstream update checks for this branded Windows build.
 - `desktop_home_page.dart`: mount isolated AbrIT Home, preserve errors/upgrade/permissions, relocate only normal install affordance.
 - `connection_page.dart`: reuse the ID/autocomplete/controllers/connect handlers; mount AbrIT layout/actions and asynchronous update foundation.
@@ -41,3 +41,5 @@ Remaining manual checks: portable installation/elevation; installed and lower-ve
 - `peers_view.dart`: read optional Home presentation scope; existing views retain their original 220 px card width outside this scope.
 - Windows `Runner.rc`: product/company/file metadata; original copyright/license retained.
 - Windows preview workflow: analysis/tests/checksums and native capture evidence; packaging remains Windows x64 only.
+
+Upstream drift at this review: fork master is 28 commits behind `rustdesk:master`. No sync/rebase or submodule bump was performed.

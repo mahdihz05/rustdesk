@@ -42,20 +42,27 @@ class _AbritPromotionBannerState extends State<AbritPromotionBanner> {
   }
 
   Future<void> _validateImage(Uint8List bytes) async {
-    final codec = await ui.instantiateImageCodec(bytes, targetWidth: 1600);
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    ui.ImageDescriptor? descriptor;
+    ui.Codec? codec;
     try {
-      final frame = await codec.getNextFrame();
-      try {
-        if (frame.image.width < 1 ||
-            frame.image.height < 1 ||
-            frame.image.height > 4096) {
-          throw const FormatException('Invalid image size');
-        }
-      } finally {
-        frame.image.dispose();
+      descriptor = await ui.ImageDescriptor.encoded(buffer);
+      if (descriptor.width < 1 ||
+          descriptor.height < 1 ||
+          descriptor.width > 4096 ||
+          descriptor.height > 4096) {
+        throw const FormatException('Invalid image dimensions');
       }
+      codec = await descriptor.instantiateCodec(
+          targetWidth: descriptor.width > 1600 ? 1600 : descriptor.width);
+      if (codec.frameCount != 1)
+        throw const FormatException('Animated promotions are not supported');
+      final frame = await codec.getNextFrame();
+      frame.image.dispose();
     } finally {
-      codec.dispose();
+      codec?.dispose();
+      descriptor?.dispose();
+      buffer.dispose();
     }
   }
 
@@ -90,6 +97,18 @@ class _AbritPromotionBannerState extends State<AbritPromotionBanner> {
       } catch (_) {/* A missing/invalid cache retains the bundled artwork. */}
       final api = AbritControlApi(config);
       final metadata = await api.get('promotion');
+      if (metadata['version'] == 1 && metadata['enabled'] == false) {
+        if (mounted)
+          setState(() {
+            _promotion = null;
+            _bytes = null;
+          });
+        if (cache != null) {
+          final envelope = File('${cache.path}/campaign-cache.json');
+          if (await envelope.exists()) await envelope.delete();
+        }
+        return;
+      }
       final promotion = AbritPromotion.fromJson(metadata, config);
       final bytes = await api.read(promotion.imageUrl,
           limit: 4 * 1024 * 1024, image: true);
