@@ -1,3 +1,9 @@
+import 'package:flutter_hbb/abrit/abrit_home.dart';
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
+import 'package:flutter_hbb/abrit/abrit_branding.dart';
+import 'package:flutter_hbb/abrit/abrit_update.dart';
+import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
+import 'package:flutter_hbb/desktop/widgets/tabbar_widget.dart';
 // main window right pane
 
 import 'dart:async';
@@ -189,7 +195,9 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
 
 /// Connection page for connecting to a remote peer.
 class ConnectionPage extends StatefulWidget {
-  const ConnectionPage({Key? key}) : super(key: key);
+  final Widget? localDevice;
+  final Widget? notices;
+  const ConnectionPage({Key? key, this.localDevice, this.notices}) : super(key: key);
 
   @override
   State<ConnectionPage> createState() => _ConnectionPageState();
@@ -220,6 +228,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   void initState() {
     super.initState();
     _allPeersLoader.init(setState);
+    if (isAbritDesk) AbritUpdate.check();
     _idFocusNode.addListener(onFocusChanged);
     if (_idController.text.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -304,6 +313,8 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   Widget build(BuildContext context) {
     final isOutgoingOnly = bind.isOutgoingOnly();
+    if (isAbritDesk && widget.localDevice != null)
+      return _buildAbritHome(context);
     return Column(
       children: [
         Expanded(
@@ -325,6 +336,26 @@ class _ConnectionPageState extends State<ConnectionPage>
     );
   }
 
+  Widget _buildAbritHome(BuildContext context) => AbritHomeLayout(
+    remoteControl: _buildRemoteIDTextField(context),
+    localDevice: widget.localDevice!, notices: widget.notices,
+    onHistory: () => Get.find<DesktopTabController>().jumpToByKey(kAbritHistoryTab),
+    status: const OnlineStatusWidget(),
+  );
+
+  void _connectSelected() => onConnect(
+        isFileTransfer: selectedConnectionType == 'Transfer file',
+        isViewCamera: selectedConnectionType == 'View camera',
+        isTerminal: selectedConnectionType == 'Terminal',
+        isTcpTunneling: selectedConnectionType == 'TCP tunneling',
+      );
+
+  Widget _buildAbritConnectActions(BuildContext context) => AbritConnectionActions(
+    selectedConnectionType: selectedConnectionType, onConnect: _connectSelected,
+    onTypeChanged: (value) { if (value != null) setState(() => selectedConnectionType = value); },
+    onLocalNetwork: () { gFFI.peerTabModel.setCurrentTab(2); Get.find<DesktopTabController>().jumpToByKey(kAbritHistoryTab); },
+  );
+
   /// Callback for the connect button.
   /// Connects to the selected peer.
   void onConnect(
@@ -344,9 +375,9 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
     var w = Container(
-      width: 320 + 20 * 2,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
-      decoration: BoxDecoration(
+      width: isAbritDesk ? double.infinity : 320 + 20 * 2,
+      padding: isAbritDesk ? const EdgeInsets.all(20) : const EdgeInsets.fromLTRB(20, 24, 20, 22),
+      decoration: isAbritDesk ? AbritStyle.panel(context, remote: true) : BoxDecoration(
         color: Theme.of(context).brightness == Brightness.light
             ? const Color(0xFFF0F5FF)
             : const Color(0xFF17243A),
@@ -368,7 +399,27 @@ class _ConnectionPageState extends State<ConnectionPage>
       child: Ink(
         child: Column(
           children: [
-            getConnectionPageTitle(context, false).marginOnly(bottom: 15),
+            if (isAbritDesk) ...[
+              Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                      abritText(
+                          'Control Remote Desktop', 'کنترل رایانه از راه دور'),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold))),
+              const SizedBox(height: 8),
+              Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                      abritText('Connect to a remote computer or server',
+                          'به رایانه یا سرور راه دور متصل شوید'),
+                      style: const TextStyle(
+                          color: Color(0xFFBACCE9), fontSize: 13))),
+              const SizedBox(height: 20),
+            ] else
+              getConnectionPageTitle(context, false).marginOnly(bottom: 15),
             Row(
               children: [
                 Expanded(
@@ -435,7 +486,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                           enableSuggestions: false,
                           keyboardType: TextInputType.visiblePassword,
                           focusNode: fieldFocusNode,
-                          style: const TextStyle(
+                          textDirection: TextDirection.ltr,
+                          style: TextStyle(
+                            color: isAbritDesk ? const Color(0xFF687CA3) : null,
                             fontFamily: 'WorkSans',
                             fontSize: 22,
                             height: 1.4,
@@ -444,7 +497,18 @@ class _ConnectionPageState extends State<ConnectionPage>
                           cursorColor:
                               Theme.of(context).textTheme.titleLarge?.color,
                           decoration: InputDecoration(
-                              filled: false,
+                              filled: isAbritDesk,
+                              fillColor:
+                                  isAbritDesk ? const Color(0xFFF4F8FF) : null,
+                              prefixIcon: isAbritDesk
+                                  ? const Icon(Icons.computer_outlined,
+                                      color: Color(0xFF687CA3))
+                                  : null,
+                              border: isAbritDesk
+                                  ? OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(9),
+                                      borderSide: BorderSide.none)
+                                  : null,
                               counterText: '',
                               hintText: _idInputFocused.value
                                   ? null
@@ -457,7 +521,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                             _idController.id = v;
                           },
                           onSubmitted: (_) {
-                            onConnect();
+                            isAbritDesk ? _connectSelected() : onConnect();
                           },
                         ).workaroundFreezeLinuxMint());
                   },
@@ -531,67 +595,70 @@ class _ConnectionPageState extends State<ConnectionPage>
                 )),
               ],
             ),
-            Padding(
-              padding: const EdgeInsets.only(top: 13.0),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                SizedBox(
-                  height: 28.0,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      onConnect();
-                    },
-                    child: Text(translate("Connect")),
+            if (isAbritDesk)
+              _buildAbritConnectActions(context)
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 13.0),
+                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  SizedBox(
+                    height: 28.0,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        onConnect();
+                      },
+                      child: Text(translate("Connect")),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  height: 28.0,
-                  width: 28.0,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: StatefulBuilder(
-                      builder: (context, setState) {
-                        var offset = Offset(0, 0);
-                        return Obx(() => InkWell(
-                              child: _menuOpen.value
-                                  ? Transform.rotate(
-                                      angle: pi,
-                                      child: Icon(IconFont.more, size: 14),
-                                    )
-                                  : Icon(IconFont.more, size: 14),
-                              onTapDown: (e) {
-                                offset = e.globalPosition;
-                              },
-                              onTap: () async {
-                                _menuOpen.value = true;
-                                final x = offset.dx;
-                                final y = offset.dy;
-                                await mod_menu
-                                    .showMenu(
-                                  context: context,
-                                  position: RelativeRect.fromLTRB(x, y, x, y),
-                                  items: [
-                                    (
-                                      'Transfer file',
-                                      () => onConnect(isFileTransfer: true)
-                                    ),
-                                    (
-                                      'View camera',
-                                      () => onConnect(isViewCamera: true)
-                                    ),
-                                    (
-                                      '${translate('Terminal')} (beta)',
-                                      () => onConnect(isTerminal: true)
-                                    ),
-                                    // `connect` routes this through the
-                                    // desktop path only; the peer card gates
-                                    // it the same way.
-                                    if (isDesktop)
+                  const SizedBox(width: 8),
+                  Container(
+                    height: 28.0,
+                    width: 28.0,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: StatefulBuilder(
+                        builder: (context, setState) {
+                          var offset = Offset(0, 0);
+                          return Obx(() => InkWell(
+                                child: _menuOpen.value
+                                    ? Transform.rotate(
+                                        angle: pi,
+                                        child: Icon(IconFont.more, size: 14),
+                                      )
+                                    : Icon(IconFont.more, size: 14),
+                                onTapDown: (e) {
+                                  offset = e.globalPosition;
+                                },
+                                onTap: () async {
+                                  _menuOpen.value = true;
+                                  final x = offset.dx;
+                                  final y = offset.dy;
+                                  await mod_menu
+                                      .showMenu(
+                                    context: context,
+                                    position: RelativeRect.fromLTRB(x, y, x, y),
+                                    items: [
                                       (
-                                        'TCP tunneling',
+                                        'Transfer file',
+                                        () => onConnect(isFileTransfer: true)
+                                      ),
+                                      (
+                                        'View camera',
+                                        () => onConnect(isViewCamera: true)
+                                      ),
+                                      (
+                                        '${translate('Terminal')} (beta)',
+                                        () => onConnect(isTerminal: true)
+                                      ),
+                                      // `connect` routes this through the
+                                      // desktop path only; the peer card gates
+                                      // it the same way.
+                                      if (isDesktop)
+                                        (
+                                          'TCP tunneling',
                                         () => onConnect(isTcpTunneling: true)
                                       ),
                                   ]
@@ -637,6 +704,8 @@ class _ConnectionPageState extends State<ConnectionPage>
       ),
     );
     return Container(
-        constraints: const BoxConstraints(maxWidth: 600), child: w);
+        constraints:
+            BoxConstraints(maxWidth: isAbritDesk ? double.infinity : 600),
+        child: w);
   }
 }

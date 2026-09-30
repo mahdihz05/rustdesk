@@ -1,3 +1,5 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
+import 'package:flutter_hbb/abrit/abrit_local_device.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
@@ -59,6 +61,13 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
+    if (isAbritDesk && !isIncomingOnly && !bind.isOutgoingOnly()) {
+      return _buildBlock(
+          child: ConnectionPage(
+        localDevice: const AbritLocalDevice(),
+        notices: buildHelpCards(''),
+      ));
+    }
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,7 +457,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   Widget buildHelpCards(String updateUrl) {
-    if (!bind.isCustomClient() &&
+    if (!isAbritDesk &&
+        !bind.isCustomClient() &&
         updateUrl.isNotEmpty &&
         !isCardClosed &&
         bind.mainUriPrefixSync().contains('rustdesk')) {
@@ -480,6 +490,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
 
     if (isWindows && !bind.isDisableInstallation()) {
       if (!bind.mainIsInstalled()) {
+        if (isAbritDesk) return const SizedBox.shrink();
         return buildInstallCard(
             "", bind.isOutgoingOnly() ? "" : "install_tip", "Install",
             () async {

@@ -1,3 +1,4 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -282,6 +283,7 @@ class _PeerCardState extends State<_PeerCard>
       BuildContext context, Peer peer, Rx<BoxDecoration?> deco) {
     hideUsernameOnCard ??=
         bind.mainGetBuildinOption(key: kHideUsernameOnCard) == 'Y';
+    final abrit = isAbritDesk && widget.tab == PeerTabIndex.recent;
     final name = hideUsernameOnCard == true
         ? peer.hostname
         : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
@@ -303,7 +305,26 @@ class _PeerCardState extends State<_PeerCard>
               children: [
                 Expanded(
                   child: Container(
-                    color: str2color('${peer.id}${peer.platform}', 0x7f),
+                    decoration: abrit
+                        ? BoxDecoration(
+                            gradient: LinearGradient(
+                                colors: peer.platform == kPeerPlatformWindows
+                                    ? [
+                                        const Color(0xFF6220AB),
+                                        const Color(0xFF40107D)
+                                      ]
+                                    : peer.platform == kPeerPlatformLinux
+                                        ? [
+                                            const Color(0xFF0B7B8A),
+                                            const Color(0xFF075160)
+                                          ]
+                                        : [
+                                            const Color(0xFF1B55BC),
+                                            const Color(0xFF16356D)
+                                          ]))
+                        : BoxDecoration(
+                            color:
+                                str2color('${peer.id}${peer.platform}', 0x7f)),
                     child: Row(
                       children: [
                         Expanded(
@@ -313,7 +334,7 @@ class _PeerCardState extends State<_PeerCard>
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 child:
-                                    getPlatformImage(peer.platform, size: 60),
+                                    getPlatformImage(peer.platform, size: abrit ? 38 : 60),
                               ),
                               Row(
                                 children: [
@@ -359,7 +380,9 @@ class _PeerCardState extends State<_PeerCard>
                   ),
                 ),
                 Container(
-                  color: Theme.of(context).colorScheme.background,
+                  color: abrit
+                      ? const Color(0xFF17212C)
+                      : Theme.of(context).colorScheme.background,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -370,7 +393,10 @@ class _PeerCardState extends State<_PeerCard>
                             child: Text(
                           peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
+                          style: abrit
+                              ? const TextStyle(
+                                  color: Colors.white, fontSize: 13)
+                              : Theme.of(context).textTheme.titleSmall,
                         )),
                       ]).paddingSymmetric(vertical: 8)),
                       checkBoxOrActionMoreLandscape(peer, isTile: false),

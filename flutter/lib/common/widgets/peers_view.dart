@@ -1,3 +1,4 @@
+import 'package:flutter_hbb/abrit/abrit_peer_style.dart';
 import 'dart:async';
 import 'dart:collection';
 
@@ -254,7 +255,7 @@ class _PeersViewState extends State<_PeersView>
                       ? Container(height: 45, child: visibilityChild)
                       : peerCardUiType.value == PeerUiType.grid
                           ? SizedBox(
-                              width: 220, height: 140, child: visibilityChild)
+                              width: AbritPeerStyle.maybeOf(context)?.cardWidth ?? 220, height: 140, child: visibilityChild)
                           : SizedBox(
                               width: 220, height: 42, child: visibilityChild))
                   : Container(child: visibilityChild);
