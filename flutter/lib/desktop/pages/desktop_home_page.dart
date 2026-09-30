@@ -129,8 +129,28 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
       child: Container(
-        width: isIncomingOnly ? 280.0 : 200.0,
-        color: Theme.of(context).colorScheme.background,
+        width: isIncomingOnly ? 300.0 : 280.0,
+        margin: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.light
+              ? const Color(0xFFEAF2FF)
+              : const Color(0xFF17243A),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.light
+                ? const Color(0xFFD7E4F7)
+                : const Color(0xFF293750),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                  Theme.of(context).brightness == Brightness.light ? 0.06 : 0.18),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
             Column(
