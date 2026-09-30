@@ -1,3 +1,4 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -144,7 +145,8 @@ void showServerSettingsWithValue(
       title: Row(
         children: [
           Expanded(child: Text(translate('ID/Relay Server'))),
-          ...ServerConfigImportExportWidgets(controllers, errMsgs),
+          if (!isAbritDesk)
+            ...ServerConfigImportExportWidgets(controllers, errMsgs),
         ],
       ),
       content: ConstrainedBox(
@@ -218,7 +220,10 @@ TextFormField serverSettingsTextFormField({
 }) {
   return TextFormField(
     controller: controller,
+    readOnly: isAbritDesk,
+    textDirection: isAbritDesk ? TextDirection.ltr : null,
     decoration: InputDecoration(
+      suffixIcon: isAbritDesk ? const Icon(Icons.lock_outline, size: 16) : null,
       labelText: showLabelText ? label : null,
       errorText: errorMsg.isEmpty ? null : errorMsg,
       contentPadding: contentPadding,

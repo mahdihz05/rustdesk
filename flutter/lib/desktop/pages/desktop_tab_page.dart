@@ -1,3 +1,6 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
+import 'package:flutter_hbb/abrit/abrit_branding.dart';
+import 'package:flutter_hbb/common/widgets/peer_tab_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
@@ -12,6 +15,9 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../common/shared_state.dart';
 
+const kAbritPrinterTab = 'abrit-printer';
+const kAbritHistoryTab = 'abrit-history';
+
 class DesktopTabPage extends StatefulWidget {
   const DesktopTabPage({Key? key}) : super(key: key);
 
@@ -22,9 +28,14 @@ class DesktopTabPage extends StatefulWidget {
       {SettingsTabKey initialPage = SettingsTabKey.general}) {
     try {
       DesktopTabController tabController = Get.find<DesktopTabController>();
+      if (isAbritDesk && initialPage == SettingsTabKey.printer) {
+        tabController.jumpToByKey(kAbritPrinterTab);
+        return;
+      }
       tabController.add(TabInfo(
           key: kTabLabelSettingPage,
           label: kTabLabelSettingPage,
+          closable: !isAbritDesk,
           selectedIcon: Icons.build_sharp,
           unselectedIcon: Icons.build_outlined,
           page: DesktopSettingPage(
@@ -52,6 +63,27 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
         page: DesktopHomePage(
           key: const ValueKey(kTabLabelHomePage),
         )));
+    if (isAbritDesk) {
+      DesktopTabPage.onAddSetting();
+      tabController.add(TabInfo(
+          key: kAbritPrinterTab,
+          label: 'Printer',
+          selectedIcon: Icons.print,
+          unselectedIcon: Icons.print_outlined,
+          closable: false,
+          page: Padding(
+              padding: const EdgeInsets.all(18),
+              child: DesktopSettingPage.printerPage())));
+      tabController.add(TabInfo(
+          key: kAbritHistoryTab,
+          label: 'Recent sessions',
+          selectedIcon: Icons.history,
+          unselectedIcon: Icons.history_outlined,
+          closable: false,
+          page: const Padding(
+              padding: EdgeInsets.all(18), child: PeerTabPage())));
+      tabController.jumpTo(0, callOnSelected: false);
+    }
     if (bind.isIncomingOnly()) {
       tabController.onSelected = (key) {
         if (key == kTabLabelHomePage) {
@@ -106,13 +138,23 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 ),
               ),
             )));
+    final content = isAbritDesk
+        ? Directionality(
+            textDirection: bind.mainGetLocalOption(key: 'lang').startsWith('fa')
+                ? TextDirection.rtl
+                : TextDirection.ltr,
+            child: Theme(
+                data: Theme.of(context).copyWith(
+                    scaffoldBackgroundColor: AbritStyle.background(context)),
+                child: tabWidget))
+        : tabWidget;
     return isMacOS || kUseCompatibleUiMode
-        ? tabWidget
+        ? content
         : Obx(
             () => DragToResizeArea(
               resizeEdgeSize: stateGlobal.resizeEdgeSize.value,
               enableResizeEdges: windowManagerEnableResizeEdges,
-              child: tabWidget,
+              child: content,
             ),
           );
   }

@@ -1,3 +1,6 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
+import 'package:flutter_hbb/abrit/abrit_branding.dart';
+import 'package:flutter_hbb/abrit/abrit_title_actions.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -321,6 +324,8 @@ class _DesktopTabState extends State<DesktopTab>
   Rx<DesktopTabState> get state => controller.state;
 
   DesktopTabType get tabType => controller.tabType;
+  double get _barHeight =>
+      isAbritDesk && tabType == DesktopTabType.main ? 52 : _kTabBarHeight;
   bool get isMainWindow =>
       tabType == DesktopTabType.main ||
       tabType == DesktopTabType.cm ||
@@ -516,12 +521,11 @@ class _DesktopTabState extends State<DesktopTab>
             !(kUseCompatibleUiMode && isHideSingleItem())) {
           final showBottomDivider = _showTabBarBottomDivider(tabType);
           return SizedBox(
-            height: _kTabBarHeight,
+            height: _barHeight,
             child: Column(
               children: [
                 SizedBox(
-                  height:
-                      showBottomDivider ? _kTabBarHeight - 1 : _kTabBarHeight,
+                  height: showBottomDivider ? _barHeight - 1 : _barHeight,
                   child: _buildBar(),
                 ),
                 if (showBottomDivider)
@@ -592,7 +596,75 @@ class _DesktopTabState extends State<DesktopTab>
             controller.tabType == DesktopTabType.install);
   }
 
+  Widget _buildAbritBar() {
+    final localeDirection = Directionality.of(context);
+    return ColoredBox(
+        color: AbritStyle.background(context),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Row(children: [
+            const AbritTitleActions(),
+            Expanded(
+                child: GestureDetector(
+              onPanStart: (_) => startDragging(true),
+              onDoubleTap: () => toggleMaximize(true)
+                  .then((value) => stateGlobal.setMaximized(value)),
+              child: Directionality(
+                  textDirection: localeDirection,
+                  child: _ListView(
+                    controller: controller,
+                    invisibleTabKeys: invisibleTabKeys,
+                    tabBuilder: (key, icon, label, conf) =>
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                      icon,
+                      const SizedBox(width: 3),
+                      Text(
+                          key == 'Home'
+                              ? abritText('Home', 'صفحه اصلی')
+                              : key == 'Settings'
+                                  ? abritText('Settings', 'تنظیمات')
+                                  : key == 'abrit-printer'
+                                      ? abritText('Printer', 'چاپگر')
+                                      : key == 'abrit-history'
+                                          ? abritText(
+                                              'Recent sessions', 'تاریخچه')
+                                          : key,
+                          style: const TextStyle(fontSize: 12)),
+                    ]),
+                    tabMenuBuilder: tabMenuBuilder,
+                    labelGetter: labelGetter,
+                    maxLabelWidth: 110,
+                    selectedTabBackgroundColor:
+                        Theme.of(context).brightness == Brightness.light
+                            ? Colors.white
+                            : const Color(0xFF223249),
+                    unSelectedTabBackgroundColor: Colors.transparent,
+                    selectedBorderColor: AbritStyle.blue,
+                  )),
+            )),
+            LayoutBuilder(
+                builder: (context, constraints) =>
+                    MediaQuery.sizeOf(context).width >= 920
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14),
+                            child: AbritBrand())
+                        : const SizedBox.shrink()),
+            WindowActionPanel(
+                isMainWindow: true,
+                state: state,
+                tabController: controller,
+                invisibleTabKeys: invisibleTabKeys,
+                showMinimize: showMinimize,
+                showMaximize: showMaximize,
+                showClose: showClose,
+                onClose: onWindowCloseButton,
+                labelGetter: labelGetter),
+          ]),
+        ));
+  }
+
   Widget _buildBar() {
+    if (isAbritDesk && tabType == DesktopTabType.main) return _buildAbritBar();
     final isIncomingHomePage = bind.isIncomingOnly() && isInHomePage();
     return Row(
       children: [
@@ -610,7 +682,9 @@ class _DesktopTabState extends State<DesktopTab>
                               .then((value) => stateGlobal.setMaximized(value));
                         }
                       }
-                    : (isIncomingHomePage ? () {} : null), // Keep tap recognizer for Windows touch.
+                    : (isIncomingHomePage
+                        ? () {}
+                        : null), // Keep tap recognizer for Windows touch.
                 onPanStart: (_) => startDragging(isMainWindow),
                 onPanCancel: () {
                   // We want to disable dragging of the tab area in the tab bar.

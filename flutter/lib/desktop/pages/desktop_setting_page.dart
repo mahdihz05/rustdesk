@@ -1,3 +1,4 @@
+import 'package:flutter_hbb/abrit/abrit_identity.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -74,6 +75,7 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
     if (!bind.isDisableAccount()) SettingsTabKey.account,
     if (isWindows &&
+        !isAbritDesk &&
         !bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
       SettingsTabKey.printer,
@@ -86,7 +88,13 @@ class DesktopSettingPage extends StatefulWidget {
   State<DesktopSettingPage> createState() =>
       _DesktopSettingPageState(initialTabkey);
 
+  static Widget printerPage() => const _Printer();
+
   static void switch2page(SettingsTabKey page) {
+    if (isAbritDesk && page == SettingsTabKey.printer) {
+      DesktopTabPage.onAddSetting(initialPage: page);
+      return;
+    }
     try {
       int index = tabKeys.indexOf(page);
       if (index == -1) {
@@ -1753,6 +1761,16 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   Widget build(BuildContext context) {
     super.build(context);
     return ListView(controller: scrollController, children: [
+      if (isAbritDesk) _Card(title: 'ID/Relay Server', children: [
+        ...['custom-rendezvous-server', 'relay-server', 'api-server', 'key'].map((key) => FutureBuilder<String>(
+          future: bind.mainGetOption(key: key),
+          builder: (context, snapshot) => ListTile(
+            title: Text(key == 'custom-rendezvous-server' ? translate('ID Server') :
+              key == 'relay-server' ? translate('Relay Server') : key == 'api-server' ? translate('API Server') : 'Key'),
+            subtitle: Directionality(textDirection: TextDirection.ltr, child: SelectableText(snapshot.data ?? '', style: const TextStyle(fontSize: 12))),
+            trailing: const Icon(Icons.lock_outline, size: 16))),
+        ),
+      ]),
       _lock(locked, 'Unlock Network Settings', () {
         locked = false;
         setState(() => {});
