@@ -16,7 +16,7 @@ The Windows install button closes subwindows and invokes `mainGotoInstall`; it d
 
 The October visual refinement adds larger main navigation, labeled destination input, left-to-right physical connection actions, stronger local-device typography and decorative artwork from text-free reference regions. The recent/active session area and its data/actions are unchanged. Native input controllers, copy/password actions and connection handlers remain in use.
 
-Approved reference artwork is bundled unmodified as `assets/abrit_reference.png`. Only the logo and banner rectangles render; none of its mock IDs/passwords/peer names become application data. This is temporary preview artwork. Add final `logo_light.png`, `logo_dark.png`, `logo.png` and a standalone campaign banner before release. Existing loadLogo() remains supported; no replacement logo was invented. The platform launcher icon remains the existing RustDesk icon pending an approved AbrIT icon.
+Approved reference artwork is bundled unmodified as `assets/abrit_reference.png`. Only the logo, banner and text-free panel illustration rectangles render; none of its mock IDs/passwords/peer names become application data. This is temporary preview artwork. Add final `logo_light.png`, `logo_dark.png`, `logo.png` and a standalone campaign banner before release. Existing loadLogo() remains supported; no replacement logo was invented. The platform launcher icon remains the existing RustDesk icon pending an approved AbrIT icon.
 
 ## Control API
 
@@ -39,8 +39,8 @@ Native dependency caching uses vcpkg's file archive provider with pinned actions
 - `desktop_home_page.dart`: mount isolated AbrIT Home, preserve errors/upgrade/permissions, relocate only normal install affordance.
 - `connection_page.dart`: reuse the ID/autocomplete/controllers/connect handlers; mount AbrIT layout/actions and asynchronous update foundation.
 - `desktop_tab_page.dart`, `tabbar_widget.dart`: permanent navigation and branded main title bar only; remote-session renderer/actions preserved.
-- `desktop_setting_page.dart`: direct existing Printer entry and visible enforced network values; existing settings pages remain.
-- `mobile/widgets/dialog.dart`: Windows-branded read-only server dialog/import policy; other platforms retain prior behavior.
+- `desktop_setting_page.dart`: direct existing Printer entry and hidden managed server settings; existing settings pages remain.
+- `mobile/widgets/dialog.dart`: Windows-branded guard against displaying the managed server dialog; other platforms retain prior behavior.
 - `peer_card.dart`: paint branded recent peer cards only, preserving menus/selection/connections.
 - `peers_view.dart`: read optional Home presentation scope; existing views retain their original 220 px card width outside this scope.
 - Windows `Runner.rc`: product/company/file metadata; original copyright/license retained.

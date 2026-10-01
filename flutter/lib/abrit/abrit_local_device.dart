@@ -188,7 +188,7 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                                         size: 20)),
                             ]),
                           ]));
-                      return size.maxWidth < 330
+                      return size.maxWidth < 280
                           ? Column(children: [
                               id,
                               const SizedBox(height: 8),

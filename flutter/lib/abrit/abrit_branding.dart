@@ -88,37 +88,34 @@ class AbritPanelContent extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!enabled) return Ink(child: child);
     final light = Theme.of(context).brightness == Brightness.light;
-    return Stack(children: [
-      Positioned.fill(
-          child: IgnorePointer(
-              child: ExcludeSemantics(
-                  child: ClipRect(
-                      child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Opacity(
-                              opacity: remote ? 0.85 : (light ? 0.8 : 0.18),
-                              child: SizedBox(
-                                  width: remote ? 126 : 112,
-                                  height: remote ? 172 : 220,
-                                  child: ShaderMask(
-                                      blendMode: BlendMode.dstIn,
-                                      shaderCallback: (bounds) =>
-                                          const LinearGradient(
-                                              colors: [
-                                            Colors.transparent,
-                                            Colors.white,
-                                            Colors.white,
-                                            Colors.transparent
-                                          ],
-                                              stops: [0, 0.18, 0.86, 1])
-                                              .createShader(bounds),
-                                      child: AbritReferenceArtwork(
-                                          source: remote
-                                              ? const Rect.fromLTWH(
-                                                  635, 125, 125, 170)
-                                              : const Rect.fromLTWH(
-                                                  1281, 119, 135, 263)))))))))),
-      child,
-    ]);
+    final artwork = ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) => const LinearGradient(
+          colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+          stops: [0, 0.3, 0.82, 1]).createShader(bounds),
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+            stops: [0, 0.15, 0.85, 1]).createShader(bounds),
+        child: AbritReferenceArtwork(source: remote
+            ? const Rect.fromLTWH(635, 125, 125, 170)
+            : const Rect.fromLTWH(1281, 119, 135, 263)),
+      ),
+    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final reserve = !remote && constraints.maxWidth >= 360;
+      return Stack(children: [
+        Positioned.fill(child: IgnorePointer(child: ExcludeSemantics(
+            child: ClipRect(child: Align(
+                alignment: Alignment.centerRight,
+                child: Opacity(
+                    opacity: remote ? 0.85 : (light ? (reserve ? 0.85 : 0.16) : 0.12),
+                    child: SizedBox(width: remote ? 126 : 112,
+                        height: remote ? 172 : 220, child: artwork))))))),
+        Padding(padding: EdgeInsets.only(right: reserve ? 96 : 0), child: child),
+      ]);
+    });
   }
 }

@@ -424,6 +424,7 @@ class _ConnectionPageState extends State<ConnectionPage>
             ] else
               getConnectionPageTitle(context, false).marginOnly(bottom: 15),
             Row(
+              textDirection: isAbritDesk ? TextDirection.ltr : Directionality.of(context),
               children: [
                 Expanded(
                     child: RawAutocomplete<Peer>(
@@ -524,19 +525,23 @@ class _ConnectionPageState extends State<ConnectionPage>
                                   : FloatingLabelBehavior.auto,
                               labelStyle: isAbritDesk
                                   ? const TextStyle(
-                                      color: Color(0xFF687CA3), fontSize: 15)
+                                      color: Color(0xFF687CA3), fontSize: 16)
                                   : null,
                               border: isAbritDesk
-                                  ? OutlineInputBorder(
+                                  ? UnderlineInputBorder(
                                       borderRadius: BorderRadius.circular(9),
                                       borderSide: BorderSide.none)
+                                  : null,
+                              hintStyle: isAbritDesk
+                                  ? const TextStyle(fontSize: 16, color: Color(0xFF8797B5))
                                   : null,
                               counterText: '',
                               hintText: _idInputFocused.value
                                   ? null
                                   : translate('Enter Remote ID'),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 15, vertical: 13)),
+                              contentPadding: isAbritDesk
+                                  ? const EdgeInsets.fromLTRB(15, 23, 15, 10)
+                                  : const EdgeInsets.symmetric(horizontal: 15, vertical: 13)),
                           controller: fieldTextEditingController,
                           inputFormatters: [IDTextInputFormatter()],
                           onChanged: (v) {
@@ -615,6 +620,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                     );
                   },
                 )),
+                if (isAbritDesk) const SizedBox(width: 60),
               ],
             ),
             if (isAbritDesk)
