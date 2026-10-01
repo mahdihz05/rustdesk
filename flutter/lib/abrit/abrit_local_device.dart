@@ -37,7 +37,7 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                   showToast(translate('Copied'));
                 },
               );
-          Widget tile({required String title, required Widget child}) =>
+          Widget tile({required String title, required IconData icon, required Widget child}) =>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -48,31 +48,28 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
+                      Row(children: [Icon(icon, size: 18, color: const Color(0xFF687CA3)), const SizedBox(width: 6), Expanded(child: Text(title,
                           style: TextStyle(
                               fontSize: 12,
                               color: light
                                   ? const Color(0xFF687CA3)
-                                  : Colors.white70)),
-                      const SizedBox(height: 8),
+                                  : Colors.white70, fontWeight: FontWeight.w600))),]),
+                      const SizedBox(height: 12),
                       child,
                     ]),
               );
           return Container(
               decoration: AbritStyle.panel(context),
+              constraints: const BoxConstraints(minHeight: 268),
               padding: const EdgeInsets.all(20),
-              child: Column(
+              child: AbritPanelContent(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      const Icon(Icons.desktop_windows_outlined,
-                          color: AbritStyle.blue),
+                    Align(alignment: Alignment.centerLeft, child: Row(mainAxisSize: MainAxisSize.min, textDirection: TextDirection.ltr, children: [
+                      Text(abritText('Your Desktop', 'دستگاه شما'), style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: light ? AbritStyle.navy : Colors.white)),
                       const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(abritText('Your Desktop', 'دستگاه شما'),
-                              style: const TextStyle(
-                                  fontSize: 21, fontWeight: FontWeight.bold)))
-                    ]),
+                      const Icon(Icons.desktop_windows_outlined, color: AbritStyle.blue, size: 29),
+                    ])),
                     const SizedBox(height: 8),
                     Text(
                         abritText('desk_tip',
@@ -81,26 +78,21 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                             color: light
                                 ? const Color(0xFF7386A8)
                                 : Colors.white60,
-                            fontSize: 12)),
+                            fontSize: 14)),
                     const Divider(height: 24),
                     LayoutBuilder(builder: (context, size) {
                       final id = tile(
-                          title: abritText('ID', 'شناسه شما'),
+                          title: abritText('ID', 'شناسه شما'), icon: Icons.copy_outlined,
                           child: Column(children: [
                             Directionality(
                                 textDirection: TextDirection.ltr,
                                 child: Row(children: [
-                                  Expanded(
-                                      child: TextField(
-                                          controller: model.serverId,
-                                          readOnly: true,
-                                          decoration: const InputDecoration(
-                                              border: InputBorder.none,
-                                              isDense: true,
-                                              contentPadding: EdgeInsets.zero),
-                                          style: const TextStyle(
-                                              fontSize: 21,
-                                              fontWeight: FontWeight.bold))),
+                                  Expanded(child: ValueListenableBuilder<TextEditingValue>(
+                                      valueListenable: model.serverId,
+                                      builder: (context, value, _) => FittedBox(
+                                          fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                                          child: Text(value.text, style: TextStyle(fontSize: 24,
+                                              fontWeight: FontWeight.bold, color: light ? AbritStyle.navy : Colors.white))))),
                                   copy(model.serverId, 'ID'),
                                 ])),
                             Obx(() {
@@ -136,7 +128,7 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                                                         : translate(
                                                             'Not ready'),
                                                     style: TextStyle(
-                                                        fontSize: 10,
+                                                        fontSize: 12,
                                                         color: ready
                                                             ? Colors.green
                                                             : Colors.orange))),
@@ -145,7 +137,7 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                           ]));
                       final password = tile(
                           title: abritText(
-                              'One-time Password', 'رمز عبور یکبار مصرف'),
+                              'One-time Password', 'رمز عبور یکبار مصرف'), icon: Icons.lock_outline,
                           child: Column(children: [
                             Directionality(
                                 textDirection: TextDirection.ltr,
@@ -157,15 +149,16 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                                           obscureText:
                                               temporary && !_showPassword,
                                           decoration: const InputDecoration(
+                                              filled: false,
                                               border: InputBorder.none,
                                               isDense: true,
                                               contentPadding: EdgeInsets.zero),
                                           style: const TextStyle(
-                                              fontSize: 20, letterSpacing: 2))),
+                                              fontSize: 23, fontWeight: FontWeight.bold, letterSpacing: 3))),
                                   if (temporary)
                                     copy(model.serverPasswd, 'Password'),
                                 ])),
-                            Wrap(spacing: 2, children: [
+                            Wrap(textDirection: TextDirection.ltr, spacing: 4, children: [
                               if (temporary)
                                 IconButton(
                                     tooltip: translate('Password'),
@@ -209,7 +202,7 @@ class _AbritLocalDeviceState extends State<AbritLocalDevice> {
                                   Expanded(child: password)
                                 ]);
                     }),
-                  ]));
+                  ])));
         }),
       );
 }

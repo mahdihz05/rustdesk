@@ -6,13 +6,15 @@ Scope: Windows x64 on `feat/abritdesk-v1-preview`. No upstream sync, server/prot
 
 `flutter/assets/abrit_config.json` is the single non-secret product profile. Rust compiles it into `src/abritdesk.rs` and reapplies it after Windows bootstrap and Flutter FFI initialization; Flutter reads it for control API origins. Rust's existing `OVERWRITE_SETTINGS` enforces ID/relay/key and an empty Pro API value. Defaults apply to portable, installed and service processes. The first-run marker preserves later language/theme choices, including selecting the system language. Non-Windows clients retain upstream startup behavior.
 
-The Network page shows read-only effective values before its existing privilege lock. Its dialog also prevents edits/import for this product. Existing admin permission mechanisms remain responsible for other network switches.
+The Network page hides the entire ID/Relay/API/key card and server-settings entry for abritDesk. Both server-dialog entry points also return before loading or displaying those values. The compiled connection policy is unchanged. Existing admin permission mechanisms remain responsible for proxy and other network switches.
 
 ## UI and reference artwork
 
 Home/Settings/Printer/History use the original DesktopTabController. Settings/Printer/History are permanent and Home is initially selected. The Printer page is the existing `_Printer`, exposed through a small factory; it has no duplicated backend or Settings sidebar entry. History uses PeerTabPage. Home uses RecentPeersView with a scoped three-column presentation. Real peer models, context menus, selection, online updates and connection actions are preserved.
 
 The Windows install button closes subwindows and invokes `mainGotoInstall`; it disappears when installation is detected. Upgrade/system/permission warnings stay on Home. The title bar reuses the original tab renderer and WindowActionPanel, with LTR physical window controls and locale-aware tab contents. Existing remote-session tab paths are unchanged.
+
+The October visual refinement adds larger main navigation, labeled destination input, left-to-right physical connection actions, stronger local-device typography and decorative artwork from text-free reference regions. The recent/active session area and its data/actions are unchanged. Native input controllers, copy/password actions and connection handlers remain in use.
 
 Approved reference artwork is bundled unmodified as `assets/abrit_reference.png`. Only the logo and banner rectangles render; none of its mock IDs/passwords/peer names become application data. This is temporary preview artwork. Add final `logo_light.png`, `logo_dark.png`, `logo.png` and a standalone campaign banner before release. Existing loadLogo() remains supported; no replacement logo was invented. The platform launcher icon remains the existing RustDesk icon pending an approved AbrIT icon.
 

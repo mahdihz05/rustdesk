@@ -376,6 +376,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   Widget _buildRemoteIDTextField(BuildContext context) {
     var w = Container(
       width: isAbritDesk ? double.infinity : 320 + 20 * 2,
+      constraints: isAbritDesk ? const BoxConstraints(minHeight: 268) : null,
       padding: isAbritDesk ? const EdgeInsets.all(20) : const EdgeInsets.fromLTRB(20, 24, 20, 22),
       decoration: isAbritDesk ? AbritStyle.panel(context, remote: true) : BoxDecoration(
         color: Theme.of(context).brightness == Brightness.light
@@ -396,7 +397,9 @@ class _ConnectionPageState extends State<ConnectionPage>
           ),
         ],
       ),
-      child: Ink(
+      child: AbritPanelContent(
+        enabled: isAbritDesk,
+        remote: true,
         child: Column(
           children: [
             if (isAbritDesk) ...[
@@ -407,7 +410,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                           'Control Remote Desktop', 'کنترل رایانه از راه دور'),
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 23,
+                          fontSize: 25,
                           fontWeight: FontWeight.bold))),
               const SizedBox(height: 8),
               Align(
@@ -416,8 +419,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                       abritText('Connect to a remote computer or server',
                           'به رایانه یا سرور راه دور متصل شوید'),
                       style: const TextStyle(
-                          color: Color(0xFFBACCE9), fontSize: 13))),
-              const SizedBox(height: 20),
+                          color: Color(0xFFBACCE9), fontSize: 14))),
+              const SizedBox(height: 28),
             ] else
               getConnectionPageTitle(context, false).marginOnly(bottom: 15),
             Row(
@@ -481,7 +484,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                   ) {
                     updateTextAndPreserveSelection(
                         fieldTextEditingController, _idController.text);
-                    return Obx(() => TextField(
+                    return Obx(() => Directionality(
+                        textDirection: isAbritDesk ? TextDirection.ltr : Directionality.of(context),
+                        child: TextField(
                           autocorrect: false,
                           enableSuggestions: false,
                           keyboardType: TextInputType.visiblePassword,
@@ -490,7 +495,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                           style: TextStyle(
                             color: isAbritDesk ? const Color(0xFF687CA3) : null,
                             fontFamily: 'WorkSans',
-                            fontSize: 22,
+                            fontSize: isAbritDesk ? 20 : 22,
                             height: 1.4,
                           ),
                           maxLines: 1,
@@ -503,6 +508,23 @@ class _ConnectionPageState extends State<ConnectionPage>
                               prefixIcon: isAbritDesk
                                   ? const Icon(Icons.computer_outlined,
                                       color: Color(0xFF687CA3))
+                                  : null,
+                              suffixIcon: isAbritDesk
+                                  ? IconButton(
+                                      tooltip: translate('Connect'),
+                                      onPressed: _connectSelected,
+                                      icon: const Icon(Icons.chevron_right,
+                                          color: Color(0xFF687CA3)))
+                                  : null,
+                              labelText: isAbritDesk
+                                  ? abritText('Remote ID', 'شناسه مقصد')
+                                  : null,
+                              floatingLabelBehavior: isAbritDesk
+                                  ? FloatingLabelBehavior.always
+                                  : FloatingLabelBehavior.auto,
+                              labelStyle: isAbritDesk
+                                  ? const TextStyle(
+                                      color: Color(0xFF687CA3), fontSize: 15)
                                   : null,
                               border: isAbritDesk
                                   ? OutlineInputBorder(
@@ -523,7 +545,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                           onSubmitted: (_) {
                             isAbritDesk ? _connectSelected() : onConnect();
                           },
-                        ).workaroundFreezeLinuxMint());
+                        ).workaroundFreezeLinuxMint()));
                   },
                   onSelected: (option) {
                     setState(() {

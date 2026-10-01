@@ -325,7 +325,7 @@ class _DesktopTabState extends State<DesktopTab>
 
   DesktopTabType get tabType => controller.tabType;
   double get _barHeight =>
-      isAbritDesk && tabType == DesktopTabType.main ? 52 : _kTabBarHeight;
+      isAbritDesk && tabType == DesktopTabType.main ? 62 : _kTabBarHeight;
   bool get isMainWindow =>
       tabType == DesktopTabType.main ||
       tabType == DesktopTabType.cm ||
@@ -629,7 +629,7 @@ class _DesktopTabState extends State<DesktopTab>
                                           ? abritText(
                                               'Recent sessions', 'تاریخچه')
                                           : key,
-                          style: const TextStyle(fontSize: 12)),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     ]),
                     tabMenuBuilder: tabMenuBuilder,
                     labelGetter: labelGetter,

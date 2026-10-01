@@ -76,3 +76,49 @@ class AbritBrand extends StatelessWidget {
         ]),
       );
 }
+
+class AbritPanelContent extends StatelessWidget {
+  final Widget child;
+  final bool remote;
+  final bool enabled;
+  const AbritPanelContent(
+      {super.key, required this.child, this.remote = false, this.enabled = true});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return Ink(child: child);
+    final light = Theme.of(context).brightness == Brightness.light;
+    return Stack(children: [
+      Positioned.fill(
+          child: IgnorePointer(
+              child: ExcludeSemantics(
+                  child: ClipRect(
+                      child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Opacity(
+                              opacity: remote ? 0.85 : (light ? 0.8 : 0.18),
+                              child: SizedBox(
+                                  width: remote ? 126 : 112,
+                                  height: remote ? 172 : 220,
+                                  child: ShaderMask(
+                                      blendMode: BlendMode.dstIn,
+                                      shaderCallback: (bounds) =>
+                                          const LinearGradient(
+                                              colors: [
+                                            Colors.transparent,
+                                            Colors.white,
+                                            Colors.white,
+                                            Colors.transparent
+                                          ],
+                                              stops: [0, 0.18, 0.86, 1])
+                                              .createShader(bounds),
+                                      child: AbritReferenceArtwork(
+                                          source: remote
+                                              ? const Rect.fromLTWH(
+                                                  635, 125, 125, 170)
+                                              : const Rect.fromLTWH(
+                                                  1281, 119, 135, 263)))))))))),
+      child,
+    ]);
+  }
+}

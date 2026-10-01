@@ -1761,16 +1761,6 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   Widget build(BuildContext context) {
     super.build(context);
     return ListView(controller: scrollController, children: [
-      if (isAbritDesk) _Card(title: 'ID/Relay Server', children: [
-        ...['custom-rendezvous-server', 'relay-server', 'api-server', 'key'].map((key) => FutureBuilder<String>(
-          future: bind.mainGetOption(key: key),
-          builder: (context, snapshot) => ListTile(
-            title: Text(key == 'custom-rendezvous-server' ? translate('ID Server') :
-              key == 'relay-server' ? translate('Relay Server') : key == 'api-server' ? translate('API Server') : 'Key'),
-            subtitle: Directionality(textDirection: TextDirection.ltr, child: SelectableText(snapshot.data ?? '', style: const TextStyle(fontSize: 12))),
-            trailing: const Icon(Icons.lock_outline, size: 16))),
-        ),
-      ]),
       _lock(locked, 'Unlock Network Settings', () {
         locked = false;
         setState(() => {});
@@ -1785,7 +1775,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   }
 
   Widget network(BuildContext context) {
-    final hideServer =
+    final hideServer = isAbritDesk ||
         bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
     final hideProxy =
         isWeb || bind.mainGetBuildinOption(key: kOptionHideProxySetting) == 'Y';

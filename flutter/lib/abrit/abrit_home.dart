@@ -155,24 +155,26 @@ class AbritConnectionActions extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 14),
         child: Wrap(
+            textDirection: TextDirection.ltr,
             spacing: 10,
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               SizedBox(
-                  height: 44,
+                  height: 48,
                   child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                           backgroundColor: AbritStyle.blue,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(9)),
-                          padding: const EdgeInsets.symmetric(horizontal: 26)),
+                          padding: const EdgeInsets.symmetric(horizontal: 28)),
                       onPressed: onConnect,
                       icon: const Icon(Icons.bolt, size: 18),
-                      label: Text(translate('Connect')))),
+                      label: Text(translate('Connect'),
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)))),
               Container(
-                  height: 44,
+                  height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
                       color: const Color(0xFFF4F8FF),
@@ -181,8 +183,7 @@ class AbritConnectionActions extends StatelessWidget {
                       child: DropdownButton<String>(
                     value: selectedConnectionType,
                     dropdownColor: const Color(0xFFF4F8FF),
-                    style:
-                        const TextStyle(color: AbritStyle.navy, fontSize: 12),
+                    style: const TextStyle(color: AbritStyle.navy, fontSize: 13, fontWeight: FontWeight.w600),
                     items: [
                       'Connect',
                       'Transfer file',
@@ -200,15 +201,15 @@ class AbritConnectionActions extends StatelessWidget {
                   ))),
               OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      foregroundColor: Colors.white70,
+                      backgroundColor: const Color(0xFF334764),
+                      foregroundColor: Colors.white,
                       side: const BorderSide(color: Color(0xFF657FA4)),
                       padding: const EdgeInsets.symmetric(
                           vertical: 16, horizontal: 10)),
                   onPressed: onLocalNetwork,
-                  icon: const Icon(Icons.computer, size: 18),
+                  icon: const Icon(Icons.computer, color: AbritStyle.blue, size: 22),
                   label: Text(abritText('Local network', 'میزکار محلی'),
-                      style: const TextStyle(fontSize: 11))),
+                      style: const TextStyle(fontSize: 12))),
             ]),
       );
 }
