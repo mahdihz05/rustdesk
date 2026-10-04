@@ -354,6 +354,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// UI for the remote ID TextField.
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
+    final compact = widget.abrit && AbritScope.of(context).metrics.compactHome;
     var w = Container(
       width: widget.abrit ? double.infinity : 320 + 20 * 2,
       padding: widget.abrit ? EdgeInsets.zero : const EdgeInsets.fromLTRB(20, 24, 20, 22),
@@ -364,11 +365,11 @@ class _ConnectionPageState extends State<ConnectionPage>
         child: Column(
           children: [
             if (widget.abrit)
-              AbritCardHeading(icon: Icons.send_outlined,
+              AbritCardHeading(compact: compact, icon: Icons.send_outlined,
                 title: abritText(context, 'Connect to another device', 'اتصال به دستگاه دیگر'),
                 description: abritText(context, 'Enter the remote device ID to connect.',
                   'شناسهٔ دستگاه مقصد را وارد کنید و به سرعت متصل شوید.'))
-                  .marginOnly(bottom: 20)
+                  .marginOnly(bottom: compact ? 12 : 20)
             else
               getConnectionPageTitle(context, false).marginOnly(bottom: 15),
             Row(
@@ -447,7 +448,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                               ? TextAlign.right : TextAlign.start,
                           style: TextStyle(
                             fontFamily: widget.abrit ? 'NotoSans' : 'WorkSans',
-                            fontSize: 22,
+                            fontSize: compact ? 20 : 22,
                             height: 1.4,
                           ),
                           maxLines: 1,
@@ -472,8 +473,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                               hintText: _idInputFocused.value
                                   ? null
                                   : translate('Enter Remote ID'),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 15, vertical: 13)),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 15, vertical: compact ? 10 : 13)),
                           controller: fieldTextEditingController,
                           inputFormatters: [IDTextInputFormatter()],
                           onChanged: (v) {
@@ -574,6 +575,7 @@ class _ConnectionPageState extends State<ConnectionPage>
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 if (widget.abrit)
                   Expanded(child: AbritConnectButton(
+                    compact: compact,
                     onPressed: () => onConnect(), label: translate('Connect')))
                 else SizedBox(
                   height: 28.0,
@@ -585,7 +587,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (widget.abrit) AbritConnectionOptions(actions: [
+                if (widget.abrit) AbritConnectionOptions(compact: compact, actions: [
                   (translate('Transfer file'), () => onConnect(isFileTransfer: true)),
                   (translate('View camera'), () => onConnect(isViewCamera: true)),
                   ('${translate('Terminal')} (beta)', () => onConnect(isTerminal: true)),

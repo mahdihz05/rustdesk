@@ -3,12 +3,13 @@ import 'brand.dart';
 
 class AbritConnectionOptions extends StatelessWidget {
   final List<(String, VoidCallback)> actions;
-  const AbritConnectionOptions({super.key, required this.actions});
+  final bool compact;
+  const AbritConnectionOptions({super.key, required this.actions, this.compact = false});
 
   @override
   Widget build(BuildContext context) => Container(
       width: 44,
-      height: 64,
+      height: compact ? 48 : 64,
       decoration: BoxDecoration(
           border: Border.all(color: Theme.of(context).dividerColor),
           borderRadius: BorderRadius.circular(8)),

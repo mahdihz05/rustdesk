@@ -13,6 +13,8 @@ class AbritLayoutMetrics {
   bool get compactNavigation => width < 900;
   bool get sideBySide => width >= 1100;
   bool get short => height < 700;
+  bool get compactHome => width < 1100 || short;
+  bool get homeSideBySide => width - navigationWidth - padding * 2 >= 600;
   double get navigationWidth => drawer
       ? 0
       : compactNavigation

@@ -28,9 +28,10 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
   bool get passwordAvailable =>
       widget.password.isNotEmpty && widget.password != '-';
 
-  Widget _valueRow(String value, {bool password = false}) => Container(
-      constraints: const BoxConstraints(minHeight: 60),
-      padding: const EdgeInsetsDirectional.only(start: 18, end: 6),
+  Widget _valueRow(String value, {bool password = false, bool compact = false}) => Container(
+      key: ValueKey(password ? 'abrit-device-password-field' : 'abrit-device-id-field'),
+      constraints: BoxConstraints(minHeight: compact ? 48 : 60),
+      padding: EdgeInsetsDirectional.only(start: compact ? 12 : 18, end: 6),
       decoration: BoxDecoration(
           color: password
               ? AbritColors.blue.withOpacity(.08)
@@ -53,7 +54,7 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
                                 textDirection: TextDirection.ltr,
                                 style: TextStyle(
                                     fontFamily: 'NotoSans',
-                                    fontSize: password ? 24 : 30,
+                                    fontSize: compact ? (password ? 20 : 22) : password ? 24 : 30,
                                     fontWeight: FontWeight.w700,
                                     color:
                                         AbritColors.foreground(context)))))))),
@@ -83,12 +84,16 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
       ]));
 
   @override
-  Widget build(BuildContext context) => AbritCard(
+  Widget build(BuildContext context) {
+    final compact = context.dependOnInheritedWidgetOfExactType<AbritScope>()
+        ?.metrics.compactHome ?? false;
+    return AbritCard(compact: compact,
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
               child: AbritCardHeading(
+                  compact: compact,
                   icon: Icons.desktop_windows_outlined,
                   title: abritText(context, 'Your device', 'دستگاه شما'),
                   description: abritText(
@@ -116,10 +121,10 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
                                 context, 'Password settings', 'تنظیمات رمز'))),
                     ]),
         ]),
-        const SizedBox(height: 20),
-        _valueRow(widget.id),
+        SizedBox(height: compact ? 12 : 20),
+        _valueRow(widget.id, compact: compact),
         const SizedBox(height: 8),
-        _valueRow(widget.password, password: true),
+        _valueRow(widget.password, password: true, compact: compact),
         const SizedBox(height: 6),
         Row(children: [
           Expanded(
@@ -139,4 +144,5 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
         ]),
         widget.warning,
       ]));
+  }
 }

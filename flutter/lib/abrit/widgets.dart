@@ -15,11 +15,12 @@ class AbritLogo extends StatelessWidget {
 
 class AbritCard extends StatelessWidget {
   final Widget child;
-  const AbritCard({super.key, required this.child});
+  final bool compact;
+  const AbritCard({super.key, required this.child, this.compact = false});
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(compact ? 16 : 24),
         decoration: BoxDecoration(
             color: AbritColors.surface(context),
             borderRadius: BorderRadius.circular(20),
@@ -37,38 +38,44 @@ class AbritCardHeading extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
+  final bool compact;
   const AbritCardHeading(
       {super.key,
       required this.icon,
       required this.title,
-      required this.description});
+      required this.description,
+      this.compact = false});
   @override
   Widget build(BuildContext context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-              width: 58,
-              height: 58,
+              width: compact ? 36 : 58,
+              height: compact ? 36 : 58,
               decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AbritColors.blue.withOpacity(.07)),
-              child: Icon(icon, color: AbritColors.blue, size: 30)),
-          const SizedBox(width: 16),
+              child: Icon(icon, color: AbritColors.blue, size: compact ? 22 : 30)),
+          SizedBox(width: compact ? 12 : 16),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                 Text(title,
+                    maxLines: compact ? 2 : null,
+                    overflow: compact ? TextOverflow.ellipsis : null,
                     style: TextStyle(
-                        fontSize: 23,
+                        fontSize: compact ? 18 : 23,
                         fontWeight: FontWeight.w700,
                         color: AbritColors.foreground(context))),
-                const SizedBox(height: 6),
-                Text(description,
+                SizedBox(height: compact ? 4 : 6),
+                Tooltip(message: compact ? description : '', child: Text(description,
+                    maxLines: compact ? 1 : null,
+                    overflow: compact ? TextOverflow.ellipsis : null,
                     style: TextStyle(
-                        fontSize: 14,
+                        fontSize: compact ? 12 : 14,
                         height: 1.6,
-                        color: AbritColors.muted(context))),
+                        color: AbritColors.muted(context)))),
               ])),
         ],
       );
@@ -77,8 +84,9 @@ class AbritCardHeading extends StatelessWidget {
 class AbritConnectButton extends StatelessWidget {
   final VoidCallback onPressed;
   final String label;
+  final bool compact;
   const AbritConnectButton(
-      {super.key, required this.onPressed, required this.label});
+      {super.key, required this.onPressed, required this.label, this.compact = false});
   @override
   Widget build(BuildContext context) => Container(
       decoration: BoxDecoration(
@@ -86,13 +94,14 @@ class AbritConnectButton extends StatelessWidget {
           gradient: const LinearGradient(
               colors: [Color(0xFF0065DF), Color(0xFF3495FF)])),
       child: ElevatedButton(
+          key: const ValueKey('abrit-connect-button'),
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               foregroundColor: Colors.white,
               shadowColor: Colors.transparent,
               elevation: 0,
-              minimumSize: const Size(0, 64),
+              minimumSize: Size(0, compact ? 48 : 64),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14))),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -104,10 +113,11 @@ class AbritConnectButton extends StatelessWidget {
 
 class AbritHero extends StatelessWidget {
   final bool short;
-  const AbritHero({super.key, required this.short});
+  final bool compact;
+  const AbritHero({super.key, required this.short, this.compact = false});
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-        constraints: BoxConstraints(minHeight: short ? 140 : 180),
+        constraints: BoxConstraints(minHeight: compact ? 64 : short ? 140 : 180),
         child: LayoutBuilder(builder: (context, constraints) {
           final showImage = constraints.maxWidth >= 550;
           return Stack(children: [
@@ -154,7 +164,7 @@ class AbritHero extends StatelessWidget {
                               abritText(context, 'Fast, secure access',
                                   'دسترسی سریع و امن'),
                               style: TextStyle(
-                                  fontSize: short ? 26 : 34,
+                                  fontSize: compact ? 20 : short ? 26 : 34,
                                   height: 1.4,
                                   fontWeight: FontWeight.w800,
                                   color: AbritColors.foreground(context))),
@@ -162,11 +172,11 @@ class AbritHero extends StatelessWidget {
                               abritText(context, 'to your devices',
                                   'به دستگاه‌های شما'),
                               style: TextStyle(
-                                  fontSize: short ? 26 : 34,
+                                  fontSize: compact ? 20 : short ? 26 : 34,
                                   height: 1.4,
                                   fontWeight: FontWeight.w800,
                                   color: AbritColors.blue)),
-                          if (!short) ...[
+                          if (!short && !compact) ...[
                             const SizedBox(height: 10),
                             Text(
                                 abritText(
@@ -185,12 +195,13 @@ class AbritHero extends StatelessWidget {
 
 class AbritBanner extends StatelessWidget {
   final bool short;
-  const AbritBanner({super.key, required this.short});
+  final bool compact;
+  const AbritBanner({super.key, required this.short, this.compact = false});
   @override
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
-            constraints: BoxConstraints(minHeight: short ? 96 : 140),
+            constraints: BoxConstraints(minHeight: compact ? 56 : short ? 96 : 140),
             color: const Color(0xFF06162E),
             child: Stack(children: [
               Positioned.fill(
@@ -201,10 +212,10 @@ class AbritBanner extends StatelessWidget {
                   child: Container(
                       color: const Color(0xFF06162E).withOpacity(.6))),
               ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: short ? 96 : 140),
+                  constraints: BoxConstraints(minHeight: compact ? 56 : short ? 96 : 140),
                   child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 16 : 24, vertical: compact ? 10 : 12),
                       child: LayoutBuilder(
                           builder: (context, constraints) => Row(children: [
                                 Expanded(
@@ -219,11 +230,13 @@ class AbritBanner extends StatelessWidget {
                                               context,
                                               'Secure remote access',
                                               'راهکاری امن برای دسترسی از راه دور'),
+                                          maxLines: compact ? 1 : null,
+                                          overflow: compact ? TextOverflow.ellipsis : null,
                                           style: TextStyle(
                                               color: Colors.white,
-                                              fontSize: short ? 18 : 24,
+                                              fontSize: compact ? 16 : short ? 18 : 24,
                                               fontWeight: FontWeight.w700)),
-                                      if (!short) ...[
+                                      if (!short && !compact) ...[
                                         const SizedBox(height: 8),
                                         Text(
                                             abritText(
@@ -236,9 +249,9 @@ class AbritBanner extends StatelessWidget {
                                     ])),
                                 if (constraints.maxWidth >= 550) ...[
                                   const SizedBox(width: 24),
-                                  const AbritLogo(size: 42),
+                                  AbritLogo(size: compact ? 28 : 42),
                                   const SizedBox(width: 12),
-                                  const Directionality(
+                                  Directionality(
                                       textDirection: TextDirection.ltr,
                                       child: Column(
                                           mainAxisAlignment:
@@ -249,13 +262,13 @@ class AbritBanner extends StatelessWidget {
                                             Text('abritdesk',
                                                 style: TextStyle(
                                                     color: Colors.white,
-                                                    fontSize: 22,
+                                                    fontSize: compact ? 16 : 22,
                                                     fontWeight: FontWeight.w700,
                                                     letterSpacing: 2)),
                                             Text('abritdesk.ir',
                                                 style: TextStyle(
                                                     color: Color(0xFF45C4FA),
-                                                    fontSize: 12,
+                                                    fontSize: compact ? 10 : 12,
                                                     letterSpacing: 1.2)),
                                           ])),
                                 ],

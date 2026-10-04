@@ -59,9 +59,11 @@ Widget harness(
               onCopy: onCopy ?? (_) {},
               onRefreshPassword: () {},
               onSecuritySettings: onSecurity ?? () {}),
-          connectionCard:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          connectionCard: Builder(builder: (context) {
+            final compact = AbritScope.of(context).metrics.compactHome;
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             AbritCardHeading(
+                compact: compact,
                 icon: Icons.send_outlined,
                 title: language == 'fa'
                     ? 'اتصال به دستگاه دیگر'
@@ -69,7 +71,7 @@ Widget harness(
                 description: language == 'fa'
                     ? 'شناسهٔ دستگاه مقصد را وارد کنید.'
                     : 'Enter the remote device ID.'),
-            const SizedBox(height: 20),
+            SizedBox(height: compact ? 12 : 20),
             Builder(
                 builder: (context) => TextField(
                     key: const ValueKey('test-remote-id'),
@@ -77,7 +79,7 @@ Widget harness(
                     focusNode: focus,
                     textDirection: TextDirection.ltr,
                     style:
-                        const TextStyle(fontFamily: 'NotoSans', fontSize: 22),
+                        TextStyle(fontFamily: 'NotoSans', fontSize: compact ? 20 : 22),
                     textAlign: language == 'fa' && controller.text.isEmpty
                         ? TextAlign.right
                         : TextAlign.left,
@@ -90,29 +92,31 @@ Widget harness(
                           fontFamily:
                               language == 'fa' ? 'Vazirmatn' : 'NotoSans',
                           fontSize: 14),
-                      contentPadding: const EdgeInsets.all(18),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: compact ? 10 : 13),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(
                               color:
                                   AbritColors.muted(context).withOpacity(.2))),
                     ))),
-            const SizedBox(height: 16),
+            const SizedBox(height: 13),
             Row(children: [Expanded(child: AbritConnectButton(
+                compact: compact,
                 onPressed: () {},
                 label: language == 'fa' ? 'اتصال' : 'Connect')),
               const SizedBox(width: 8),
-              AbritConnectionOptions(actions: [
+              AbritConnectionOptions(compact: compact, actions: [
                 ('Transfer file', onTransfer ?? () {}),
                 ('View camera', () {}),
                 ('Terminal (beta)', () {}),
                 ('TCP tunneling', () {}),
               ]),
             ]),
-          ]),
+          ]);
+          }),
           peers: const Center(child: Text('Saved devices')),
           help: const SizedBox.shrink(),
-          status: const SizedBox.shrink(),
+          status: const SizedBox(height: 42),
         ),
       )),
     );
@@ -133,6 +137,8 @@ void main() {
     const Size(360, 500),
     const Size(599, 600),
     const Size(600, 600),
+    const Size(703, 600),
+    const Size(704, 600),
     const Size(800, 600),
     const Size(899, 650),
     const Size(900, 650),
@@ -163,6 +169,40 @@ void main() {
       expect(controller.text, '195799164');
       expect(find.byType(AbritLogo), findsNWidgets(2));
       expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('default Windows client area shows both forms and the banner without scrolling', (tester) async {
+    final destination = ValueNotifier(AbritDestination.home);
+    final controller = TextEditingController();
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(784, 592);
+    for (final language in ['fa', 'en']) {
+      for (final dark in [false, true]) {
+        await tester.pumpWidget(harness(destination: destination, controller: controller,
+            language: language, dark: dark));
+        await tester.pumpAndSettle();
+        for (final key in ['abrit-device-id-field', 'abrit-device-password-field',
+          'test-remote-id', 'abrit-connect-button', 'abrit-connection-options',
+          'abrit-home-banner', 'abrit-install-card']) {
+          final rect = tester.getRect(find.byKey(ValueKey(key)));
+          expect(rect.top, greaterThanOrEqualTo(72), reason: '$language/$dark/$key');
+          expect(rect.bottom, lessThanOrEqualTo(550), reason: '$language/$dark/$key');
+          expect(rect.left, greaterThanOrEqualTo(0));
+          expect(rect.right, lessThanOrEqualTo(784));
+        }
+        expect(tester.getRect(find.byKey(const ValueKey('abrit-device'))).top,
+            tester.getRect(find.byKey(const ValueKey('abrit-form'))).top);
+        await tester.tap(find.byKey(const ValueKey('test-remote-id')));
+        await tester.enterText(find.byKey(const ValueKey('test-remote-id')), '195799164');
+        expect(controller.text, '195799164');
+        await tester.tap(find.byKey(const ValueKey('abrit-connect-button')));
+        expect(tester.takeException(), isNull);
+      }
     }
   });
 
@@ -277,7 +317,7 @@ void main() {
           final device =
               tester.getRect(find.byKey(const ValueKey('abrit-device')));
           final form = tester.getRect(find.byKey(const ValueKey('abrit-form')));
-          if (size.width >= 1100) {
+          if (size.width >= 704) {
             expect(device.top, form.top);
             expect(
                 language == 'fa'
@@ -394,9 +434,8 @@ void main() {
             language: language));
         await tester.pumpAndSettle();
         expect(
-            tester.getRect(find.byKey(const ValueKey('abrit-device'))).bottom,
-            lessThanOrEqualTo(
-                tester.getRect(find.byKey(const ValueKey('abrit-form'))).top));
+            tester.getRect(find.byKey(const ValueKey('abrit-device'))).top,
+            tester.getRect(find.byKey(const ValueKey('abrit-form'))).top);
         expect(
             tester.getRect(find.byIcon(Icons.close)).right, greaterThan(750));
         expect(tester.takeException(), isNull);

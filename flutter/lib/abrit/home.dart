@@ -24,6 +24,8 @@ class AbritHomeLayout extends StatelessWidget {
         builder: (context, destination, _) {
           final showingPeers = destination == AbritDestination.devices ||
               destination == AbritDestination.addressBook;
+          final compact = scope.metrics.compactHome;
+          final gap = compact ? 12.0 : 20.0;
           return Column(children: [
             Expanded(
                 child: Stack(children: [
@@ -37,23 +39,23 @@ class AbritHomeLayout extends StatelessWidget {
                             Offstage(
                                 offstage:
                                     destination == AbritDestination.connection,
-                                child: AbritHero(short: scope.metrics.short)),
-                            const SizedBox(height: 20),
+                                child: AbritHero(short: scope.metrics.short, compact: compact)),
+                            SizedBox(height: gap),
                             LayoutBuilder(builder: (context, constraints) {
-                              final cardWidth = scope.metrics.sideBySide &&
+                              final cardWidth = scope.metrics.homeSideBySide &&
                                       deviceCard != null &&
                                       destination == AbritDestination.home
-                                  ? (constraints.maxWidth - 22) / 2
+                                  ? (constraints.maxWidth - (compact ? 16 : 22)) / 2
                                   : constraints.maxWidth;
                               return Wrap(
                                   spacing:
                                       destination == AbritDestination.connection
                                           ? 0
-                                          : 22,
+                                          : compact ? 16 : 22,
                                   runSpacing:
                                       destination == AbritDestination.connection
                                           ? 0
-                                          : 22,
+                                          : compact ? 12 : 22,
                                   children: [
                                     if (deviceCard != null)
                                       Offstage(
@@ -69,15 +71,18 @@ class AbritHomeLayout extends StatelessWidget {
                                         width: cardWidth,
                                         child: ConstrainedBox(
                                             constraints: BoxConstraints(minHeight:
-                                                scope.metrics.sideBySide ? 309 : 0),
-                                            child: AbritCard(child: connectionCard))),
+                                                compact && scope.metrics.homeSideBySide &&
+                                                    destination == AbritDestination.home
+                                                    ? 236 : scope.metrics.sideBySide && !compact ? 309 : 0),
+                                            child: AbritCard(compact: compact, child: connectionCard))),
                                   ]);
                             }),
-                            const SizedBox(height: 20),
+                            SizedBox(height: gap),
                             Offstage(
                                 offstage:
                                     destination == AbritDestination.connection,
-                                child: AbritBanner(short: scope.metrics.short)),
+                                child: AbritBanner(key: const ValueKey('abrit-home-banner'),
+                                    short: scope.metrics.short, compact: compact)),
                             const SizedBox(height: 8),
                             help,
                           ]))),
