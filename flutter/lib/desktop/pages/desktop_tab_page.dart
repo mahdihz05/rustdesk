@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../abrit/brand.dart';
+import '../../abrit/shell.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -8,6 +10,8 @@ import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../models/peer_tab_model.dart';
+import '../../models/ab_model.dart';
 // import 'package:flutter/services.dart';
 
 import '../../common/shared_state.dart';
@@ -22,6 +26,9 @@ class DesktopTabPage extends StatefulWidget {
       {SettingsTabKey initialPage = SettingsTabKey.general}) {
     try {
       DesktopTabController tabController = Get.find<DesktopTabController>();
+      if (Get.isRegistered<ValueNotifier<AbritDestination>>()) {
+        Get.find<ValueNotifier<AbritDestination>>().value = AbritDestination.settings;
+      }
       tabController.add(TabInfo(
           key: kTabLabelSettingPage,
           label: kTabLabelSettingPage,
@@ -39,10 +46,12 @@ class DesktopTabPage extends StatefulWidget {
 
 class _DesktopTabPageState extends State<DesktopTabPage> {
   final tabController = DesktopTabController(tabType: DesktopTabType.main);
+  final destination = ValueNotifier(AbritDestination.home);
 
   _DesktopTabPageState() {
     RemoteCountState.init();
     Get.put<DesktopTabController>(tabController);
+    Get.put<ValueNotifier<AbritDestination>>(destination);
     tabController.add(TabInfo(
         key: kTabLabelHomePage,
         label: kTabLabelHomePage,
@@ -85,6 +94,8 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   void dispose() {
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     Get.delete<DesktopTabController>();
+    Get.delete<ValueNotifier<AbritDestination>>();
+    destination.dispose();
 
     super.dispose();
   }
@@ -94,7 +105,61 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
     final tabWidget = Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
-            body: DesktopTab(
+            body: bind.isIncomingOnly() ? DesktopTab(
+              controller: tabController,
+              tail: Offstage(offstage: bind.isDisableSettings(),
+                child: ActionIcon(message: 'Settings', icon: IconFont.menu,
+                  onTap: DesktopTabPage.onAddSetting, isClose: false)),
+            ) : AbritDesktopShell(
+              destination: destination,
+              version: version,
+              onLayout: (metrics) {
+                stateGlobal.isPortrait.value = metrics.compactContent;
+              },
+              destinations: [
+                AbritDestination.home,
+                if (!bind.isIncomingOnly()) AbritDestination.connection,
+                if (!bind.isIncomingOnly()) AbritDestination.devices,
+                if (!bind.isIncomingOnly() && !bind.isDisableAb() && !bind.isDisableAccount())
+                  AbritDestination.addressBook,
+                if (!bind.isDisableSettings() && DesktopSettingPage.tabKeys.isNotEmpty)
+                  AbritDestination.settings,
+              ],
+              onSelected: (page) {
+                destination.value = page;
+                if (page == AbritDestination.settings) {
+                  DesktopTabPage.onAddSetting(initialPage: DesktopSettingPage.tabKeys.first);
+                } else {
+                  if (page == AbritDestination.addressBook) {
+                    gFFI.peerTabModel.setCurrentTabCachedPeers([]);
+                    gFFI.peerTabModel.setMultiSelectionMode(false);
+                    gFFI.peerTabModel.setCurrentTab(PeerTabIndex.ab.index);
+                    gFFI.abModel.pullAb(force: ForcePullAb.listAndCurrent, quiet: false);
+                  } else if (page == AbritDestination.devices &&
+                      gFFI.peerTabModel.currentTab == PeerTabIndex.ab.index) {
+                    final indexes = gFFI.peerTabModel.visibleEnabledOrderedIndexs
+                        .where((index) => index != PeerTabIndex.ab.index);
+                    if (indexes.isNotEmpty) {
+                      gFFI.peerTabModel.setCurrentTabCachedPeers([]);
+                      gFFI.peerTabModel.setMultiSelectionMode(false);
+                      gFFI.peerTabModel.setCurrentTab(indexes.first);
+                    }
+                  }
+                  tabController.jumpToByKey(kTabLabelHomePage);
+                }
+              },
+              onDrag: () => startDragging(true),
+              onMaximize: () {
+                if (!bind.isIncomingOnly()) toggleMaximize(true);
+              },
+              windowControls: WindowActionPanel(
+                isMainWindow: true,
+                state: tabController.state,
+                tabController: tabController,
+                invisibleTabKeys: RxList<String>(),
+              ),
+              child: DesktopTab(
+              showTabBar: false,
               controller: tabController,
               tail: Offstage(
                 offstage: bind.isIncomingOnly() || bind.isDisableSettings(),
@@ -105,7 +170,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                   isClose: false,
                 ),
               ),
-            )));
+            ))));
     return isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(

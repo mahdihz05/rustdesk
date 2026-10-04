@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import '../../abrit/brand.dart';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
@@ -101,6 +102,17 @@ class _PeerTabPageState extends State<PeerTabPage>
   @override
   Widget build(BuildContext context) {
     final model = Provider.of<PeerTabModel>(context);
+    final abrit = context.dependOnInheritedWidgetOfExactType<AbritScope>();
+    if (abrit != null) {
+      return ValueListenableBuilder<AbritDestination>(
+        valueListenable: abrit.destination,
+        builder: (context, destination, _) {
+          if (destination == AbritDestination.addressBook) {
+            return _buildAbritPeers(context, model, addressOnly: true);
+          }
+          return _buildAbritPeers(context, model);
+        });
+    }
     Widget selectionWrap(Widget widget) {
       return model.multiSelectionMode ? createMultiSelectionBar(model) : widget;
     }
@@ -183,6 +195,29 @@ class _PeerTabPageState extends State<PeerTabPage>
                     ),
                   )));
         }).toList());
+  }
+
+  Widget _buildAbritPeers(BuildContext context, PeerTabModel model,
+      {bool addressOnly = false}) {
+    final indexes = model.visibleEnabledOrderedIndexs
+        .where((index) => index != PeerTabIndex.ab.index).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (!addressOnly && indexes.isNotEmpty)
+        visibleContextMenuListener(DropdownButtonFormField<int>(isExpanded: true,
+            value: indexes.contains(model.currentTab) ? model.currentTab : indexes.first,
+            items: indexes.map((index) => DropdownMenuItem(value: index,
+              child: Text(model.tabTooltip(index)))).toList(),
+            onChanged: isOptionFixed(kOptionPeerTabIndex) ? null : (index) async {
+              if (index == null) return;
+              await handleTabSelection(index);
+              await bind.setLocalFlutterOption(k: kOptionPeerTabIndex, v: index.toString());
+            })),
+      SizedBox(height: 40, child: SingleChildScrollView(scrollDirection: Axis.horizontal,
+        child: model.multiSelectionMode ? createMultiSelectionBar(model)
+          : Row(mainAxisSize: MainAxisSize.min, children: _landscapeRightActions(context)))),
+      if (addressOnly) Expanded(child: entries[PeerTabIndex.ab.index].widget)
+      else _createPeersView(),
+    ]);
   }
 
   Widget _createPeersView() {

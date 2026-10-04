@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'abrit/brand.dart';
+import 'abrit/runtime.dart';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -471,6 +473,12 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // stateGlobal.isPortrait.value =
     //     MediaQuery.of(context).orientation == Orientation.portrait;
 
+    if (isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()) {
+      final view = View.of(context);
+      final size = view.physicalSize / view.devicePixelRatio;
+      stateGlobal.isPortrait.value = AbritLayoutMetrics(size.width, size.height).compactContent;
+      return;
+    }
     final orientation = View.of(context).physicalSize.aspectRatio > 1
         ? Orientation.landscape
         : Orientation.portrait;
@@ -497,9 +505,14 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           debugShowCheckedModeBanner: false,
           title: isWeb
               ? '${bind.mainGetAppNameSync()} Web Client V2 (Preview)'
-              : bind.mainGetAppNameSync(),
-          theme: MyTheme.lightTheme,
-          darkTheme: MyTheme.darkTheme,
+              : abritProductName,
+          locale: isDesktop ? abritLocale() : null,
+          theme: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
+              ? abritTheme(MyTheme.lightTheme, persian: abritLocale().languageCode == 'fa')
+              : MyTheme.lightTheme,
+          darkTheme: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
+              ? abritTheme(MyTheme.darkTheme, persian: abritLocale().languageCode == 'fa')
+              : MyTheme.darkTheme,
           themeMode: MyTheme.currentThemeMode(),
           home: isDesktop
               ? const DesktopTabPage()

@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'brand.dart';
+import 'widgets.dart';
+
+class AbritHomeLayout extends StatelessWidget {
+  final Widget? deviceCard;
+  final Widget connectionCard;
+  final Widget peers;
+  final Widget help;
+  final Widget status;
+  const AbritHomeLayout(
+      {super.key,
+      this.deviceCard,
+      required this.connectionCard,
+      required this.peers,
+      required this.help,
+      required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = AbritScope.of(context);
+    return ValueListenableBuilder<AbritDestination>(
+        valueListenable: scope.destination,
+        builder: (context, destination, _) {
+          final showingPeers = destination == AbritDestination.devices ||
+              destination == AbritDestination.addressBook;
+          return Column(children: [
+            Expanded(
+                child: Stack(children: [
+              Offstage(
+                  offstage: showingPeers,
+                  child: SingleChildScrollView(
+                      padding: EdgeInsets.all(scope.metrics.padding),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Offstage(
+                                offstage:
+                                    destination == AbritDestination.connection,
+                                child: AbritHero(short: scope.metrics.short)),
+                            const SizedBox(height: 20),
+                            LayoutBuilder(builder: (context, constraints) {
+                              final cardWidth = scope.metrics.sideBySide &&
+                                      deviceCard != null &&
+                                      destination == AbritDestination.home
+                                  ? (constraints.maxWidth - 22) / 2
+                                  : constraints.maxWidth;
+                              return Wrap(
+                                  spacing:
+                                      destination == AbritDestination.connection
+                                          ? 0
+                                          : 22,
+                                  runSpacing:
+                                      destination == AbritDestination.connection
+                                          ? 0
+                                          : 22,
+                                  children: [
+                                    if (deviceCard != null)
+                                      Offstage(
+                                          offstage: destination ==
+                                              AbritDestination.connection,
+                                          child: SizedBox(
+                                              key: const ValueKey(
+                                                  'abrit-device'),
+                                              width: cardWidth,
+                                              child: deviceCard)),
+                                    SizedBox(
+                                        key: const ValueKey('abrit-form'),
+                                        width: cardWidth,
+                                        child:
+                                            AbritCard(child: connectionCard)),
+                                  ]);
+                            }),
+                            help,
+                            const SizedBox(height: 20),
+                            Offstage(
+                                offstage:
+                                    destination == AbritDestination.connection,
+                                child: AbritBanner(short: scope.metrics.short)),
+                            const SizedBox(height: 8),
+                          ]))),
+              Offstage(
+                  offstage: !showingPeers,
+                  child: Padding(
+                      padding: EdgeInsets.all(scope.metrics.padding),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                                destination == AbritDestination.addressBook
+                                    ? abritText(
+                                        context, 'Address book', 'دفترچهٔ آدرس')
+                                    : abritText(
+                                        context, 'Devices', 'دستگاه‌ها'),
+                                style: const TextStyle(
+                                    fontSize: 26, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 20),
+                            Expanded(child: peers),
+                          ]))),
+            ])),
+            SingleChildScrollView(
+                scrollDirection: Axis.horizontal, child: status),
+          ]);
+        });
+  }
+}

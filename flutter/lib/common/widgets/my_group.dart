@@ -1,3 +1,4 @@
+import '../../abrit/directional.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -81,10 +82,10 @@ class _MyGroupState extends State<MyGroup> {
               ],
             ),
           ),
-        ).marginOnly(right: 12.0),
+        ).abritMarginOnly(end: 12.0),
         Expanded(
           child: Align(
-              alignment: Alignment.topLeft,
+              alignment: abritStartAlignment(context, Alignment.topLeft, AlignmentDirectional.topStart),
               child: MyGroupPeerView(
                 menuPadding: widget.menuPadding,
               )),
@@ -116,7 +117,7 @@ class _MyGroupState extends State<MyGroup> {
         ).marginOnly(bottom: 12.0),
         Expanded(
           child: Align(
-              alignment: Alignment.topLeft,
+              alignment: abritStartAlignment(context, Alignment.topLeft, AlignmentDirectional.topStart),
               child: MyGroupPeerView(
                 menuPadding: widget.menuPadding,
               )),
@@ -241,12 +242,13 @@ class _MyGroupState extends State<MyGroup> {
                       ),
                     ),
                   ),
-                ).marginOnly(right: 4),
+                ).abritMarginOnly(end: 4),
                 if (isMe) Flexible(child: Text(displayName)),
                 if (isMe)
                   Flexible(
                     child: Container(
-                      margin: EdgeInsets.only(left: 5),
+                      margin: abritEnabled(context)
+                          ? EdgeInsetsDirectional.only(start: 5) : EdgeInsets.only(left: 5),
                       padding: EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                       decoration: BoxDecoration(
                           color: colorMe.withAlpha(20),
@@ -297,7 +299,7 @@ class _MyGroupState extends State<MyGroup> {
                   height: 20,
                   child: Icon(IconFont.deviceGroupOutline,
                       color: MyTheme.accent, size: 19),
-                ).marginOnly(right: 4),
+                ).abritMarginOnly(end: 4),
                 Expanded(child: Text(name)),
               ],
             ).paddingSymmetric(vertical: 4),

@@ -150,7 +150,7 @@ class HomePageState extends State<HomePage> {
         ],
       );
     }
-    return Text(bind.mainGetAppNameSync());
+    return Text('Abrit Desk');
   }
 }
 
@@ -166,7 +166,7 @@ class WebHomePage extends StatelessWidget {
       // backgroundColor: MyTheme.grayBg,
       appBar: AppBar(
         centerTitle: true,
-        title: Text("${bind.mainGetAppNameSync()} (Preview)"),
+        title: Text("Abrit Desk (Preview)"),
         actions: connectionPage.appBarActions,
       ),
       body: connectionPage,

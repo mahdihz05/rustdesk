@@ -12,6 +12,8 @@ import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../abrit/brand.dart';
+import '../../abrit/widgets.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
 import '../../common.dart';
@@ -189,7 +191,9 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
 
 /// Connection page for connecting to a remote peer.
 class ConnectionPage extends StatefulWidget {
-  const ConnectionPage({Key? key}) : super(key: key);
+  final bool abrit;
+  final Widget Function(BuildContext, Widget, Widget, Widget)? presentationBuilder;
+  const ConnectionPage({Key? key, this.abrit = false, this.presentationBuilder}) : super(key: key);
 
   @override
   State<ConnectionPage> createState() => _ConnectionPageState();
@@ -200,6 +204,7 @@ class _ConnectionPageState extends State<ConnectionPage>
     with SingleTickerProviderStateMixin, WindowListener {
   /// Controller for the id input bar.
   final _idController = IDTextEditingController();
+  final _abritIdFieldKey = GlobalKey();
 
   final RxBool _idInputFocused = false.obs;
   final FocusNode _idFocusNode = FocusNode();
@@ -304,6 +309,11 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   Widget build(BuildContext context) {
     final isOutgoingOnly = bind.isOutgoingOnly();
+    if (widget.presentationBuilder != null) {
+      return widget.presentationBuilder!(context, _buildRemoteIDTextField(context),
+          PeerTabPage(key: const ValueKey('abrit-peers')),
+          isOutgoingOnly ? const SizedBox.shrink() : OnlineStatusWidget());
+    }
     return Column(
       children: [
         Expanded(
@@ -344,19 +354,28 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
     var w = Container(
-      width: 320 + 20 * 2,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+      width: widget.abrit ? double.infinity : 320 + 20 * 2,
+      padding: widget.abrit ? EdgeInsets.zero : const EdgeInsets.fromLTRB(20, 24, 20, 22),
       decoration: BoxDecoration(
           borderRadius: const BorderRadius.all(Radius.circular(13)),
-          border: Border.all(color: Theme.of(context).colorScheme.background)),
+          border: widget.abrit ? null : Border.all(color: Theme.of(context).colorScheme.background)),
       child: Ink(
         child: Column(
           children: [
-            getConnectionPageTitle(context, false).marginOnly(bottom: 15),
+            if (widget.abrit)
+              AbritCardHeading(icon: Icons.send_outlined,
+                title: abritText(context, 'Connect to another device', 'اتصال به دستگاه دیگر'),
+                description: abritText(context, 'Enter the remote device ID to connect.',
+                  'شناسهٔ دستگاه مقصد را وارد کنید و به سرعت متصل شوید.'))
+                  .marginOnly(bottom: 20)
+            else
+              getConnectionPageTitle(context, false).marginOnly(bottom: 15),
             Row(
               children: [
                 Expanded(
                     child: RawAutocomplete<Peer>(
+                  optionsViewOpenDirection: widget.abrit && AbritScope.of(context).metrics.short
+                      ? OptionsViewOpenDirection.up : OptionsViewOpenDirection.down,
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text == '') {
                       _autocompleteOpts = const Iterable<Peer>.empty();
@@ -415,12 +434,18 @@ class _ConnectionPageState extends State<ConnectionPage>
                     updateTextAndPreserveSelection(
                         fieldTextEditingController, _idController.text);
                     return Obx(() => TextField(
+                          key: widget.abrit ? _abritIdFieldKey : null,
                           autocorrect: false,
                           enableSuggestions: false,
                           keyboardType: TextInputType.visiblePassword,
                           focusNode: fieldFocusNode,
-                          style: const TextStyle(
-                            fontFamily: 'WorkSans',
+                          textDirection: widget.abrit ? TextDirection.ltr : null,
+                          textAlign: widget.abrit && _idInputFocused.value == false &&
+                              fieldTextEditingController.text.isEmpty &&
+                              Directionality.of(context) == TextDirection.rtl
+                              ? TextAlign.right : TextAlign.start,
+                          style: TextStyle(
+                            fontFamily: widget.abrit ? 'NotoSans' : 'WorkSans',
                             fontSize: 22,
                             height: 1.4,
                           ),
@@ -428,7 +453,20 @@ class _ConnectionPageState extends State<ConnectionPage>
                           cursorColor:
                               Theme.of(context).textTheme.titleLarge?.color,
                           decoration: InputDecoration(
-                              filled: false,
+                              filled: widget.abrit,
+                              fillColor: widget.abrit ? AbritColors.field(context) : null,
+                              border: widget.abrit ? OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: AbritColors.muted(context).withOpacity(.2))) : null,
+                              enabledBorder: widget.abrit ? OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: AbritColors.muted(context).withOpacity(.2))) : null,
+                              focusedBorder: widget.abrit ? OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(color: AbritColors.blue)) : null,
+                              hintStyle: widget.abrit ? TextStyle(fontSize: 14,
+                                fontFamily: Localizations.localeOf(context).languageCode == 'fa'
+                                    ? 'Vazirmatn' : 'NotoSans') : null,
                               counterText: '',
                               hintText: _idInputFocused.value
                                   ? null
@@ -464,9 +502,24 @@ class _ConnectionPageState extends State<ConnectionPage>
                       maxHeight = 193;
                     }
                     maxHeight = maxHeight.clamp(0, 200);
+                    double maxWidth = 319;
+                    final optionsUp = widget.abrit && AbritScope.of(this.context).metrics.short;
+                    if (widget.abrit) {
+                      final screen = MediaQuery.sizeOf(context);
+                      final input = _abritIdFieldKey.currentContext?.findRenderObject();
+                      if (input is RenderBox && input.hasSize) {
+                        maxWidth = input.size.width.clamp(0, screen.width);
+                        final top = input.localToGlobal(Offset.zero).dy;
+                        final available = optionsUp ? top - 8
+                            : screen.height - top - input.size.height - 8;
+                        maxHeight = maxHeight.clamp(0, available.clamp(0, 200));
+                      }
+                    }
 
                     return Align(
-                      alignment: Alignment.topLeft,
+                      alignment: widget.abrit
+                          ? (optionsUp ? AlignmentDirectional.bottomStart : AlignmentDirectional.topStart)
+                          : Alignment.topLeft,
                       child: Container(
                           decoration: BoxDecoration(
                             boxShadow: [
@@ -484,7 +537,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxHeight: maxHeight,
-                                    maxWidth: 319,
+                                    maxWidth: maxWidth,
                                   ),
                                   child: _allPeersLoader.peers.isEmpty &&
                                           !_allPeersLoader.isPeersLoaded
@@ -518,7 +571,10 @@ class _ConnectionPageState extends State<ConnectionPage>
             Padding(
               padding: const EdgeInsets.only(top: 13.0),
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                SizedBox(
+                if (widget.abrit)
+                  Expanded(child: AbritConnectButton(
+                    onPressed: () => onConnect(), label: translate('Connect')))
+                else SizedBox(
                   height: 28.0,
                   child: ElevatedButton(
                     onPressed: () {
@@ -529,8 +585,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  height: 28.0,
-                  width: 28.0,
+                  height: widget.abrit ? 64 : 28.0,
+                  width: widget.abrit ? 44 : 28.0,
                   decoration: BoxDecoration(
                     border: Border.all(color: Theme.of(context).dividerColor),
                     borderRadius: BorderRadius.circular(8),
@@ -620,6 +676,7 @@ class _ConnectionPageState extends State<ConnectionPage>
         ),
       ),
     );
+    if (widget.abrit) return w;
     return Container(
         constraints: const BoxConstraints(maxWidth: 600), child: w);
   }

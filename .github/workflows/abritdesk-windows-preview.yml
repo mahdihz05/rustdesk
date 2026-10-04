@@ -1,0 +1,163 @@
+name: Abrit Desk Windows Preview
+
+on:
+  push:
+    branches:
+      - feat/abritdesk-responsive-preview
+  workflow_dispatch:
+
+env:
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-binary-cache,readwrite'
+
+concurrency:
+  group: abritdesk-windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+    with:
+      legacy-only: true
+
+  windows-x64-preview:
+    name: Windows x64 preview
+    needs: generate-bridge
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          submodules: recursive
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          architecture: x64
+
+      - name: Replace engine with RustDesk custom Flutter engine
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          Move-Item -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Patch Flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Validate Abrit UI and responsive layouts
+        shell: pwsh
+        working-directory: flutter
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "Flutter dependency resolution failed" }
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/abrit lib/desktop/pages/connection_page.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/desktop_tab_page.dart lib/desktop/pages/desktop_setting_page.dart lib/desktop/widgets/tabbar_widget.dart lib/common/widgets/peer_card.dart lib/common/widgets/peer_tab_page.dart lib/common/widgets/address_book.dart lib/common/widgets/my_group.dart test/abrit_layout_test.dart
+          if ($LASTEXITCODE -ne 0) { throw "Abrit Dart analysis failed" }
+          flutter test test/abrit_layout_test.dart --reporter expanded
+          if ($LASTEXITCODE -ne 0) { throw "Abrit responsive layout tests failed" }
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          prefix-key: windows-2022-abritdesk-preview
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: true
+
+      - name: Prepare vcpkg binary archive cache
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path C:\vcpkg-binary-cache -Force | Out-Null
+
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: C:\vcpkg-binary-cache
+          key: ${{ runner.os }}-abritdesk-vcpkg-x64-static-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**', 'res/vcpkg-triplets/**') }}
+          restore-keys: |
+            ${{ runner.os }}-abritdesk-vcpkg-x64-static-${{ env.VCPKG_COMMIT_ID }}-
+
+      - name: Install vcpkg dependencies
+        shell: bash
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build Abrit Desk preview
+        shell: pwsh
+        run: |
+          python3 .\build.py --portable --flutter --skip-portable-pack
+          if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+          if (-not (Test-Path ".\flutter\build\windows\x64\runner\Release\rustdesk.exe")) {
+            throw "Preview executable was not produced"
+          }
+          $release = ".\flutter\build\windows\x64\runner\Release"
+          foreach ($file in @('librustdesk.dll', 'flutter_windows.dll', 'data/app.so', 'data/flutter_assets/assets/abrit/logo.png', 'data/flutter_assets/assets/abrit/Vazirmatn.ttf', 'data/flutter_assets/assets/abrit/hero-light.png')) {
+            if (-not (Test-Path (Join-Path $release $file))) { throw "Missing preview runtime file: $file" }
+          }
+          "Abrit Desk Windows x64 preview`nCommit: $env:GITHUB_SHA`nExtract the entire archive, then run rustdesk.exe.`nKeep data/ and all DLLs beside the executable." | Set-Content "$release\PREVIEW.txt" -Encoding UTF8
+          Get-ChildItem $release -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash.ToLower())  $($_.Path.Substring((Resolve-Path $release).Path.Length + 1))"
+          } | Set-Content "$release\SHA256SUMS.txt" -Encoding UTF8
+
+      - name: Upload Windows preview
+        id: preview
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-windows-x64-preview
+          path: flutter/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write download instructions
+        shell: pwsh
+        env:
+          ARTIFACT_URL: ${{ steps.preview.outputs.artifact-url }}
+        run: |
+          @"
+          ### Abrit Desk Windows x64 preview
+          [Download the complete Windows bundle]($env:ARTIFACT_URL)
+
+          Extract all files and run **rustdesk.exe**. The executable displays the Abrit Desk brand.
+          The preview includes the responsive Persian/English UI and keeps RustDesk's window sizing and settings identity.
+          This is an unsigned UI preview with software codecs; installers and other platforms are built by the existing workflows.
+
+          Commit: $env:GITHUB_SHA
+          "@ | Add-Content $env:GITHUB_STEP_SUMMARY

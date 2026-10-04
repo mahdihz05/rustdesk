@@ -57,6 +57,7 @@ class MainFlutterWindow: NSWindow {
 
     override func awakeFromNib() {
         rustdesk_core_main();
+        self.title = "Abrit Desk"
         _ = MainFlutterWindow.fullscreenObserver
         let flutterViewController = FlutterViewController.init()
         let windowFrame = self.frame

@@ -1633,6 +1633,16 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     // The elevated runner expands this to `%~f0.dir`, beside its protected copy.
     // Do not stage privileged shortcut artifacts in the user-writable `%TEMP%`.
     let tmp_path = "%RUSTDESK_OUTPUT_DIR%".to_owned();
+    let display_name = crate::common::get_display_app_name();
+    let legacy_shortcuts = if app_name != display_name {
+        format!("
+if exist \"%PUBLIC%\\Desktop\\{app_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{app_name}.lnk\"
+if exist \"{start_menu}\\{app_name}.lnk\" del /f /q \"{start_menu}\\{app_name}.lnk\"
+if exist \"{start_menu}\\Uninstall {app_name}.lnk\" del /f /q \"{start_menu}\\Uninstall {app_name}.lnk\"
+")
+    } else {
+        String::new()
+    };
     let mk_shortcut_commands = embedded_shortcut_commands(
         shortcut_bytes(&exe, None, shortcut_icon_location.as_deref())?,
         &format!("{app_name}.lnk"),
@@ -1651,7 +1661,7 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     let mut shortcuts = Default::default();
     if options.contains("desktopicon") {
         shortcuts = format!(
-            "copy /Y \"{}\\{}.lnk\" \"%PUBLIC%\\Desktop\\\"",
+            "copy /Y \"{}\\{}.lnk\" \"%PUBLIC%\\Desktop\\{display_name}.lnk\"",
             tmp_path,
             crate::get_app_name()
         );
@@ -1661,8 +1671,8 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
         shortcuts = format!(
             "{shortcuts}
 md \"{start_menu}\"
-copy /Y \"{tmp_path}\\{app_name}.lnk\" \"{start_menu}\\\"
-copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
+copy /Y \"{tmp_path}\\{app_name}.lnk\" \"{start_menu}\\{display_name}.lnk\"
+copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\Uninstall {display_name}.lnk\"
      "
         );
         reg_value_start_menu_shortcuts = "1".to_owned();
@@ -1704,7 +1714,8 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
     } else {
         format!("
 {tray_shortcut_commands}
-copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+if /I not \"{app_name}\"==\"{display_name}\" if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
 ")
     };
 
@@ -1727,9 +1738,10 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
 chcp 65001
 md \"{path}\"
 {copy_exe}
+{legacy_shortcuts}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
-reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{display_name}\"
 reg add {subkey} /f /v DisplayVersion /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v Version /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v BuildDate /t REG_SZ /d \"{build_date}\"
@@ -1850,11 +1862,14 @@ fn get_uninstall(kill_self: bool, uninstall_printer: bool) -> ResultType<String>
     if exist \"{path}\" rd /s /q \"{path}\"
     if exist \"{start_menu}\" rd /s /q \"{start_menu}\"
     if exist \"%PUBLIC%\\Desktop\\{app_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{app_name}.lnk\"
+    if exist \"%PUBLIC%\\Desktop\\{display_name}.lnk\" del /f /q \"%PUBLIC%\\Desktop\\{display_name}.lnk\"
     if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
     ",
         before_uninstall=get_before_uninstall(kill_self),
         uninstall_amyuni_idd=get_uninstall_amyuni_idd(),
         app_name = crate::get_app_name(),
+        display_name = crate::common::get_display_app_name(),
     ))
 }
 
@@ -2757,7 +2772,12 @@ pub fn send_message_to_hnwd(
     unsafe {
         let class_name_utf16 = wide_string(class_name);
         let window_name_utf16 = wide_string(window_name);
-        let window = FindWindowW(class_name_utf16.as_ptr(), window_name_utf16.as_ptr());
+        let mut window = FindWindowW(class_name_utf16.as_ptr(), window_name_utf16.as_ptr());
+        if window.is_null() && class_name == FLUTTER_RUNNER_WIN32_WINDOW_CLASS
+            && window_name == crate::get_app_name().as_str() {
+            let display_name = wide_string(crate::common::get_display_app_name());
+            window = FindWindowW(class_name_utf16.as_ptr(), display_name.as_ptr());
+        }
         if window.is_null() {
             log::warn!("no such window {}:{}", class_name, window_name);
             return false;
@@ -3291,9 +3311,11 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
     sc stop {app_name}
     sc delete {app_name}
     if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+    if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
     taskkill /F /IM {broker_exe}
     taskkill /F /IM {app_name}.exe{filter}
     ",
+        display_name = crate::common::get_display_app_name(),
         app_name = crate::get_app_name(),
         broker_exe = WIN_TOPMOST_INJECTED_PROCESS_EXE,
     );
@@ -3308,6 +3330,7 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
 
 fn get_install_service_commands(path: &str, exe: &str) -> ResultType<String> {
     let app_name = crate::get_app_name();
+    let display_name = crate::common::get_display_app_name();
     for value in [path, exe] {
         validate_install_value(value)?;
     }
@@ -3329,7 +3352,8 @@ fn get_install_service_commands(path: &str, exe: &str) -> ResultType<String> {
 chcp 65001
 taskkill /F /IM {app_name}.exe{filter}
 {tray_shortcut_commands}
-copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\\"
+if /I not \"{app_name}\"==\"{display_name}\" if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
+copy /Y \"%RUSTDESK_OUTPUT_DIR%\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
 {import_config}
 {create_service}
     ",
@@ -3944,14 +3968,17 @@ fn get_create_service(exe: &str) -> String {
     if stop {
         format!("
 if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{app_name} Tray.lnk\"
-", app_name = crate::get_app_name())
+if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\" del /f /q \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{display_name} Tray.lnk\"
+", display_name = crate::common::get_display_app_name(),
+        app_name = crate::get_app_name())
     } else {
         let exe = escape_nested_cmd_ampersands(exe);
         format!("
-sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
+sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{display_name} Service\"
 sc start {app_name}
 ",
-    app_name = crate::get_app_name())
+    display_name = crate::common::get_display_app_name(),
+        app_name = crate::get_app_name())
     }
 }
 

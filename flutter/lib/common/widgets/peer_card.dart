@@ -1,3 +1,4 @@
+import '../../abrit/directional.dart';
 import 'package:bot_toast/bot_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -86,7 +87,9 @@ class _PeerCardState extends State<_PeerCard>
         margin: EdgeInsets.symmetric(horizontal: 2),
         child: gestureDetector(
           child: Container(
-              padding: EdgeInsets.only(left: 12, top: 8, bottom: 8),
+              padding: abritEnabled(context)
+                  ? EdgeInsetsDirectional.only(start: 12, top: 8, bottom: 8)
+                  : EdgeInsets.only(left: 12, top: 8, bottom: 8),
               child: _buildPeerTile(context, peer, null)),
         ));
   }
@@ -148,7 +151,10 @@ class _PeerCardState extends State<_PeerCard>
               color: str2color('${peer.id}${peer.platform}', 0x7f),
               borderRadius: isPortrait
                   ? BorderRadius.circular(_tileRadius)
-                  : BorderRadius.only(
+                  : abritEnabled(context) ? BorderRadiusDirectional.only(
+                      topStart: Radius.circular(_tileRadius),
+                      bottomStart: Radius.circular(_tileRadius),
+                    ) : BorderRadius.only(
                       topLeft: Radius.circular(_tileRadius),
                       bottomLeft: Radius.circular(_tileRadius),
                     ),
@@ -172,7 +178,10 @@ class _PeerCardState extends State<_PeerCard>
           child: Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.background,
-              borderRadius: BorderRadius.only(
+              borderRadius: abritEnabled(context) ? BorderRadiusDirectional.only(
+                topEnd: Radius.circular(_tileRadius),
+                bottomEnd: Radius.circular(_tileRadius),
+              ) : BorderRadius.only(
                 topRight: Radius.circular(_tileRadius),
                 bottomRight: Radius.circular(_tileRadius),
               ),
@@ -187,6 +196,8 @@ class _PeerCardState extends State<_PeerCard>
                         Expanded(
                             child: Text(
                           peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+                          textDirection: abritEnabled(context) && peer.alias.isEmpty
+                              ? TextDirection.ltr : null,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleSmall,
                         )),
@@ -198,7 +209,7 @@ class _PeerCardState extends State<_PeerCard>
                               message: name,
                               waitDuration: const Duration(seconds: 1),
                               child: Align(
-                                alignment: Alignment.centerLeft,
+                                alignment: abritStartAlignment(context, Alignment.centerLeft, AlignmentDirectional.centerStart),
                                 child: Text(
                                   name,
                                   style: isPortrait ? null : greyStyle,
@@ -214,14 +225,14 @@ class _PeerCardState extends State<_PeerCard>
                                 message: peer.note,
                                 waitDuration: const Duration(seconds: 1),
                                 child: Align(
-                                  alignment: Alignment.centerLeft,
+                                  alignment: abritStartAlignment(context, Alignment.centerLeft, AlignmentDirectional.centerStart),
                                   child: Text(
                                     peer.note,
                                     style: isPortrait ? null : greyStyle,
                                     textAlign: TextAlign.start,
                                     overflow: TextOverflow.ellipsis,
-                                  ).marginOnly(
-                                      left: peerCardUiType.value ==
+                                  ).abritMarginOnly(
+                                      start: peerCardUiType.value ==
                                               PeerUiType.list
                                           ? 32
                                           : 4),
@@ -237,7 +248,7 @@ class _PeerCardState extends State<_PeerCard>
                     ? checkBoxOrActionMorePortrait(peer)
                     : checkBoxOrActionMoreLandscape(peer, isTile: true),
               ],
-            ).paddingOnly(left: 10.0, top: 3.0),
+            ).abritPaddingOnly(start: 10.0, top: 3.0),
           ),
         )
       ],
@@ -464,9 +475,9 @@ class _PeerCardState extends State<_PeerCard>
           decoration: BoxDecoration(
               border: Border.all(color: MyTheme.accent, width: 1)),
           child: icon,
-        ).marginOnly(right: right);
+        ).abritMarginOnly(end: right);
       } else {
-        return icon.marginOnly(right: right);
+        return icon.abritMarginOnly(end: right);
       }
     } else {
       return _actionMore(peer);
@@ -797,7 +808,7 @@ abstract class BasePeerCard extends StatelessWidget {
               scale: 0.8,
               child: Icon(Icons.delete_forever, color: Colors.red),
             ),
-          ).marginOnly(right: 4)),
+          ).abritMarginOnly(end: 4)),
         ],
       ),
       proc: () {
@@ -877,7 +888,7 @@ abstract class BasePeerCard extends StatelessWidget {
               scale: 0.8,
               child: Icon(Icons.star_outline),
             ),
-          ).marginOnly(right: 4)),
+          ).abritMarginOnly(end: 4)),
         ],
       ),
       proc: () {
@@ -912,7 +923,7 @@ abstract class BasePeerCard extends StatelessWidget {
               scale: 0.8,
               child: Icon(Icons.star),
             ),
-          ).marginOnly(right: 4)),
+          ).abritMarginOnly(end: 4)),
         ],
       ),
       proc: () {
@@ -1390,6 +1401,8 @@ void _rdpDialog(String id) async {
                     : SizedBox.shrink(),
                 Expanded(
                   child: TextField(
+                    textDirection: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
+                        ? TextDirection.ltr : null,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(
                           r'^([0-9]|[1-9]\d|[1-9]\d{2}|[1-9]\d{3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$'))
@@ -1415,6 +1428,8 @@ void _rdpDialog(String id) async {
                         : SizedBox.shrink(),
                     Expanded(
                       child: TextField(
+                    textDirection: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
+                        ? TextDirection.ltr : null,
                         decoration: InputDecoration(
                             labelText:
                                 isDesktop ? null : translate('Username')),
@@ -1435,6 +1450,8 @@ void _rdpDialog(String id) async {
                         : SizedBox.shrink(),
                     Expanded(
                       child: Obx(() => TextField(
+                        textDirection: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
+                            ? TextDirection.ltr : null,
                             obscureText: secure.value,
                             maxLength: maxLength,
                             decoration: InputDecoration(

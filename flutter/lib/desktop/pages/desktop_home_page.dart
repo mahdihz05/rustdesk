@@ -24,6 +24,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 import '../widgets/button.dart';
+import '../../abrit/device_card.dart';
+import '../../abrit/brand.dart';
+import '../../abrit/home.dart';
 
 class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({Key? key}) : super(key: key);
@@ -58,6 +61,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (!bind.isIncomingOnly()) {
+      return _buildBlock(child: ConnectionPage(
+        key: const ValueKey('abrit-connection'),
+        abrit: true, presentationBuilder: _buildAbritPresentation));
+    }
     final isIncomingOnly = bind.isIncomingOnly();
     return _buildBlock(
         child: Row(
@@ -73,6 +81,37 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget _buildBlock({required Widget child}) {
     return buildRemoteBlock(
         block: _block, mask: true, use: canBeBlocked, child: child);
+  }
+
+  Widget _buildAbritPresentation(BuildContext context, Widget form,
+      Widget peers, Widget status) {
+    return AbritHomeLayout(
+      deviceCard: bind.isOutgoingOnly() ? null : ChangeNotifierProvider.value(
+        value: gFFI.serverModel,
+        child: Consumer<ServerModel>(builder: (context, model, _) =>
+          _buildAbritDeviceCard(context, model))),
+      connectionCard: form,
+      peers: peers,
+      help: Obx(() => buildHelpCards(stateGlobal.updateUrl.value)),
+      status: status,
+    );
+  }
+
+  Widget _buildAbritDeviceCard(BuildContext context, ServerModel model) {
+    return AbritDeviceCard(
+      id: model.serverId.text,
+      password: model.serverPasswd.text,
+      unattended: model.approveMode == 'password',
+      onCopy: (value) {
+        Clipboard.setData(ClipboardData(text: value));
+        showToast(translate('Copied'));
+      },
+      onRefreshPassword: model.serverPasswd.text.isNotEmpty && model.serverPasswd.text != '-'
+          ? () => bind.mainUpdateTemporaryPassword() : null,
+      onSecuritySettings: bind.isDisableSettings() ? null
+          : () => DesktopSettingPage.switch2page(SettingsTabKey.safety),
+      warning: buildPresetPasswordWarning(),
+    );
   }
 
   Widget buildLeftPane(BuildContext context) {
@@ -578,6 +617,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       String? link,
       bool? closeButton,
       String? closeOption}) {
+    final abrit = context.dependOnInheritedWidgetOfExactType<AbritScope>() != null;
     if (bind.mainGetBuildinOption(key: kOptionHideHelpCards) == 'Y' &&
         content != 'install_daemon_tip') {
       return const SizedBox();
@@ -604,10 +644,11 @@ class _DesktopHomePageState extends State<DesktopHomePage>
               0, marginTop, 0, bind.isIncomingOnly() ? marginTop : 0),
           child: Container(
               decoration: BoxDecoration(
+                  borderRadius: abrit ? BorderRadius.circular(20) : null,
                   gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [
+                colors: abrit ? [Color(0xFF0065DF), Color(0xFF3495FF)] : [
                   Color.fromARGB(255, 226, 66, 188),
                   Color.fromARGB(255, 244, 114, 124),
                 ],
@@ -678,7 +719,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         if (closeButton != null && closeButton == true)
           Positioned(
             top: 18,
-            right: 0,
+            left: abrit && Directionality.of(context) == TextDirection.rtl ? 0 : null,
+            right: abrit && Directionality.of(context) == TextDirection.rtl ? null : 0,
             child: IconButton(
               icon: Icon(
                 Icons.close,
