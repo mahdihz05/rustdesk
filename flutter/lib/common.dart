@@ -1609,8 +1609,7 @@ String translate(String name) {
     return name.split(': ').map((x) => translate(x)).join(': ');
   }
   final text = platformFFI.translate(name, localeName);
-  if (name == 'powered_by_me' || name.startsWith('doc_') ||
-      name.startsWith('upgrade_rustdesk_server_pro')) return text;
+  if (name.startsWith('doc_')) return text;
   return text.replaceAll('RustDesk', abritProductName);
 }
 
@@ -3742,7 +3741,7 @@ Widget loadPowered(BuildContext context) {
     cursor: SystemMouseCursors.click,
     child: GestureDetector(
       onTap: () {
-        launchUrl(Uri.parse('https://rustdesk.com'));
+        launchUrl(Uri.parse(abritWebsite));
       },
       child: Opacity(
           opacity: 0.5,

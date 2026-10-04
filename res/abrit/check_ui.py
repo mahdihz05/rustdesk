@@ -23,7 +23,7 @@ def check(sdk):
         (project / "test").mkdir()
         (project / "assets").mkdir()
         for source in (ROOT / "flutter/lib/abrit").glob("*.dart"):
-            if source.name != "runtime.dart":
+            if source.name not in ("runtime.dart", "install_prompt.dart"):
                 shutil.copy2(source, project / "lib/abrit" / source.name)
         shutil.copy2(ROOT / "flutter/test/abrit_layout_test.dart", project / "test")
         shutil.copytree(ROOT / "flutter/assets/abrit", project / "assets/abrit")

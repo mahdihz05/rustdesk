@@ -277,8 +277,7 @@ pub fn translate_locale(name: String, locale: &str) -> String {
                 }
             }
         }
-        if name != "powered_by_me" && !name.starts_with("doc_")
-            && !name.starts_with("upgrade_rustdesk_server_pro") {
+        if !name.starts_with("doc_") {
             s = s.replace("RustDesk", crate::common::get_display_app_name());
         }
         s

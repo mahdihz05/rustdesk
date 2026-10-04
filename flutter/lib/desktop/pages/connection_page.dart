@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/widgets.dart';
+import '../../abrit/connection_options.dart';
 import 'package:flutter_hbb/models/peer_model.dart';
 
 import '../../common.dart';
@@ -43,7 +44,7 @@ class _OnlineStatusWidgetState extends State<OnlineStatusWidget> {
   double? get height => bind.isIncomingOnly() ? null : em * 3;
 
   void onUsePublicServerGuide() {
-    const url = "https://rustdesk.com/pricing";
+    const url = abritWebsite;
     canLaunchUrlString(url).then((can) {
       if (can) {
         launchUrlString(url);
@@ -584,7 +585,12 @@ class _ConnectionPageState extends State<ConnectionPage>
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
+                if (widget.abrit) AbritConnectionOptions(actions: [
+                  (translate('Transfer file'), () => onConnect(isFileTransfer: true)),
+                  (translate('View camera'), () => onConnect(isViewCamera: true)),
+                  ('${translate('Terminal')} (beta)', () => onConnect(isTerminal: true)),
+                  if (isDesktop) (translate('TCP tunneling'), () => onConnect(isTcpTunneling: true)),
+                ]) else Container(
                   height: widget.abrit ? 64 : 28.0,
                   width: widget.abrit ? 44 : 28.0,
                   decoration: BoxDecoration(

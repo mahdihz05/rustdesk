@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../abrit/brand.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -187,9 +188,9 @@ class _InstallPageBodyState extends State<_InstallPageBody>
                           InkWell(
                             hoverColor: Colors.transparent,
                             onTap: () => launchUrlString(
-                                'https://rustdesk.com/privacy.html'),
+                                abritWebsite),
                             child: Tooltip(
-                              message: 'https://rustdesk.com/privacy.html',
+                              message: abritWebsite,
                               child: Row(children: [
                                 Icon(Icons.launch_outlined, size: 16)
                                     .marginOnly(right: 5),

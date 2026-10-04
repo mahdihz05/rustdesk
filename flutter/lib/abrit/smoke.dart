@@ -11,6 +11,8 @@ String? get abritSmokeDirectory =>
     !kIsWeb && Platform.isWindows ? Platform.environment['ABRIT_UI_SMOKE_DIR'] : null;
 
 Future<void> Function()? abritSmokeRestoreLanguage;
+final abritSmokeActions = <String, VoidCallback>{};
+Future<void> Function(String)? abritSmokeChangeLanguage;
 
 void installAbritSmokeErrorReporting() {
   final directory = abritSmokeDirectory;
@@ -85,6 +87,19 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
         widget.onSelected(page);
         await _save(page.name);
       }
+      abritSmokeActions['settings-network']?.call();
+      await _save('settings-network');
+      abritSmokeActions['settings-about']?.call();
+      await _save('settings-about');
+      final original = Platform.environment['ABRIT_UI_SMOKE_LANG'] ?? 'en';
+      for (final language in [original == 'fa' ? 'en' : 'fa', 'de']) {
+        await abritSmokeChangeLanguage?.call(language);
+        widget.onSelected(AbritDestination.home);
+        await _save('home-language-$language');
+      }
+      await abritSmokeChangeLanguage?.call(original);
+      widget.onSelected(AbritDestination.home);
+      await _save('home');
       await abritSmokeRestoreLanguage?.call();
       await File('$abritSmokeDirectory/complete.json')
           .writeAsString(jsonEncode({'complete': true}));

@@ -13,6 +13,7 @@ class AbritDesktopShell extends StatefulWidget {
   final List<AbritDestination> destinations;
   final String version;
   final ValueChanged<AbritLayoutMetrics>? onLayout;
+  final Widget Function(BuildContext, bool)? navigationFooterBuilder;
   const AbritDesktopShell(
       {super.key,
       required this.child,
@@ -23,7 +24,8 @@ class AbritDesktopShell extends StatefulWidget {
       required this.onMaximize,
       required this.destinations,
       required this.version,
-      this.onLayout});
+      this.onLayout,
+      this.navigationFooterBuilder});
   @override
   State<AbritDesktopShell> createState() => _AbritDesktopShellState();
 }
@@ -70,7 +72,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                   Expanded(
                       child: ListView(
                           padding: EdgeInsets.all(compact ? 10 : 20),
-                          children: widget.destinations.map((destination) {
+                          children: [...widget.destinations.map((destination) {
                             final active = selected == destination;
                             final label = _label(context, destination);
                             final color = active
@@ -123,35 +125,18 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                                             .w500))),
                                                       ],
                                                     ]))))));
-                          }).toList())),
+                          }),
+                            if (widget.navigationFooterBuilder != null) ...[
+                              const SizedBox(height: 20),
+                              widget.navigationFooterBuilder!(context, compact),
+                            ],
+                          ])),
                   if (MediaQuery.sizeOf(context).height >= 350)
                     Padding(
                         padding: EdgeInsets.all(compact ? 10 : 24),
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (!compact)
-                                const Directionality(
-                                    textDirection: TextDirection.ltr,
-                                    child: Row(children: [
-                                      AbritLogo(size: 32),
-                                      SizedBox(width: 10),
-                                      Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text('abritdesk',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w700)),
-                                            Text('abritdesk.ir',
-                                                style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Color(0xFF717B8B),
-                                                    letterSpacing: 1)),
-                                          ])
-                                    ])),
-                              const SizedBox(height: 16),
                               if (widget.version.isNotEmpty)
                                 Directionality(
                                     textDirection: TextDirection.ltr,

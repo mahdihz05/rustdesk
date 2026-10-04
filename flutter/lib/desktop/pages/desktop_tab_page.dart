@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/shell.dart';
+import '../../abrit/install_prompt.dart';
+import '../../abrit/smoke.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -77,6 +79,10 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   void initState() {
     super.initState();
+    if (abritSmokeDirectory != null) {
+      abritSmokeActions['settings-network'] = () => DesktopSettingPage.switch2page(SettingsTabKey.network);
+      abritSmokeActions['settings-about'] = () => DesktopSettingPage.switch2page(SettingsTabKey.about);
+    }
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 
@@ -111,6 +117,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 child: ActionIcon(message: 'Settings', icon: IconFont.menu,
                   onTap: DesktopTabPage.onAddSetting, isClose: false)),
             ) : AbritDesktopShell(
+              navigationFooterBuilder: (_, compact) => AbritInstallPrompt(compact: compact),
               destination: destination,
               version: version,
               onLayout: (metrics) {

@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/widgets.dart';
+import '../../abrit/about.dart';
+import '../../abrit/runtime.dart';
+import '../../abrit/smoke.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
@@ -899,16 +902,19 @@ class _GeneralState extends State<_General> {
         currentKey = defaultOptionLang;
       }
       final isOptFixed = isOptionFixed(kCommConfKeyLang);
+      Future<void> onLanguageChanged(String key) async {
+        await bind.mainSetLocalOption(key: kCommConfKeyLang, value: key);
+        if (isDesktop) await Get.updateLocale(abritLocale());
+        if (isWeb) reloadCurrentWindow();
+        if (!isWeb) reloadAllWindows();
+        if (!isWeb) bind.mainChangeLanguage(lang: key);
+      }
+      if (abritSmokeDirectory != null) abritSmokeChangeLanguage = onLanguageChanged;
       return ComboBox(
         keys: keys,
         values: values,
         initialKey: currentKey,
-        onChanged: (key) async {
-          await bind.mainSetLocalOption(key: kCommConfKeyLang, value: key);
-          if (isWeb) reloadCurrentWindow();
-          if (!isWeb) reloadAllWindows();
-          if (!isWeb) bind.mainChangeLanguage(lang: key);
-        },
+        onChanged: onLanguageChanged,
         enabled: !isOptFixed,
       ).abritMarginOnly(start: _kContentHMargin);
     });
@@ -1806,7 +1812,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
 
   Widget network(BuildContext context) {
     final hideServer =
-        bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
+        isDesktop || bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
     final hideProxy =
         isWeb || bind.mainGetBuildinOption(key: kOptionHideProxySetting) == 'Y';
     final hideWebSocket = isWeb ||
@@ -2566,6 +2572,11 @@ class _AboutState extends State<_About> {
       final buildDate = data['buildDate'].toString();
       final fingerprint = data['fingerprint'].toString();
       final myId = data['myId'].toString();
+      if (isDesktop) {
+        return AbritAbout(version: version, buildDate: buildDate,
+            fingerprint: fingerprint, deviceId: myId,
+            onWebsiteOpen: () => launchUrl(Uri.parse(abritWebsite)));
+      }
       const linkStyle = TextStyle(decoration: TextDecoration.underline);
       final scrollController = ScrollController();
       return SingleChildScrollView(

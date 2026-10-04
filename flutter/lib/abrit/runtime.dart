@@ -5,9 +5,6 @@ import '../consts.dart';
 import '../models/platform_model.dart';
 
 Locale abritLocale() {
-  if (abritSmokeDirectory != null) {
-    return Locale(Platform.environment['ABRIT_UI_SMOKE_LANG'] ?? 'en');
-  }
   final saved = bind.mainGetLocalOption(key: kCommConfKeyLang);
   final language = (saved.isEmpty ? localeName : saved)
       .toLowerCase()
@@ -30,6 +27,7 @@ Future<void> prepareAbritSmokeLanguage() async {
       value: Platform.environment['ABRIT_UI_SMOKE_LANG'] ?? 'en');
   abritSmokeRestoreLanguage = () async {
     await bind.mainSetLocalOption(key: kCommConfKeyLang, value: saved);
+    await bind.mainChangeLanguage(lang: saved);
     abritSmokeRestoreLanguage = null;
   };
 }

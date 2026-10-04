@@ -28,7 +28,7 @@ try {
                 }
                 if (Test-Path (Join-Path $casePath 'errors.txt')) { throw (Get-Content (Join-Path $casePath 'errors.txt') -Raw) }
                 $images = @(Get-ChildItem $casePath -Filter '*.png')
-                if ($images.Count -ne 10) { throw "Expected 10 actual application screenshots, received $($images.Count)" }
+                if ($images.Count -ne 14) { throw "Expected 14 actual application screenshots, received $($images.Count)" }
                 Write-Output "Actual release UI passed: $language/$theme ($($images.Count) screenshots)"
             } finally {
                 if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }

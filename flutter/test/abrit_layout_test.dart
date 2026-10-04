@@ -8,6 +8,9 @@ import 'package:flutter_hbb/abrit/directional.dart';
 import 'package:flutter_hbb/abrit/home.dart';
 import 'package:flutter_hbb/abrit/shell.dart';
 import 'package:flutter_hbb/abrit/widgets.dart';
+import 'package:flutter_hbb/abrit/install_card.dart';
+import 'package:flutter_hbb/abrit/connection_options.dart';
+import 'package:flutter_hbb/abrit/about.dart';
 
 Widget harness(
         {required ValueNotifier<AbritDestination> destination,
@@ -15,12 +18,14 @@ Widget harness(
         FocusNode? focus,
         String language = 'en',
         bool dark = false,
+        VoidCallback? onInstall,
+        VoidCallback? onTransfer,
         ValueChanged<String>? onCopy,
         VoidCallback? onSecurity}) =>
     MaterialApp(
       debugShowCheckedModeBanner: false,
       locale: Locale(language),
-      supportedLocales: const [Locale('en'), Locale('fa')],
+      supportedLocales: const [Locale('en'), Locale('fa'), Locale('de'), Locale('fr'), Locale('ar')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -38,6 +43,8 @@ Widget harness(
         onDrag: () {},
         onMaximize: () {},
         version: '1.5.0',
+        navigationFooterBuilder: (_, compact) => AbritInstallCard(
+            compact: compact, onPressed: onInstall ?? () {}),
         destinations: AbritDestination.values,
         windowControls: const Row(mainAxisSize: MainAxisSize.min, children: [
           SizedBox(width: 44, child: Icon(Icons.remove, size: 18)),
@@ -91,9 +98,17 @@ Widget harness(
                                   AbritColors.muted(context).withOpacity(.2))),
                     ))),
             const SizedBox(height: 16),
-            AbritConnectButton(
+            Row(children: [Expanded(child: AbritConnectButton(
                 onPressed: () {},
-                label: language == 'fa' ? 'اتصال' : 'Connect'),
+                label: language == 'fa' ? 'اتصال' : 'Connect')),
+              const SizedBox(width: 8),
+              AbritConnectionOptions(actions: [
+                ('Transfer file', onTransfer ?? () {}),
+                ('View camera', () {}),
+                ('Terminal (beta)', () {}),
+                ('TCP tunneling', () {}),
+              ]),
+            ]),
           ]),
           peers: const Center(child: Text('Saved devices')),
           help: const SizedBox.shrink(),
@@ -127,6 +142,113 @@ void main() {
     const Size(1280, 850),
     const Size(1920, 1080)
   ];
+
+  testWidgets('language changes mirror navigation and preserve the form', (tester) async {
+    final destination = ValueNotifier(AbritDestination.home);
+    final controller = TextEditingController(text: '195799164');
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 850);
+    for (final language in ['fa', 'en', 'de', 'ar', 'fr', 'fa']) {
+      await tester.pumpWidget(harness(destination: destination, controller: controller, language: language));
+      await tester.pumpAndSettle();
+      final install = tester.getRect(find.byKey(const ValueKey('abrit-install-card')));
+      final content = tester.getRect(find.byKey(const ValueKey('abrit-main-content')));
+      final rtl = language == 'fa' || language == 'ar';
+      expect(rtl ? install.left >= content.right : install.right <= content.left, isTrue);
+      expect(install.top, greaterThan(tester.getRect(find.byIcon(Icons.settings_outlined)).bottom));
+      expect(controller.text, '195799164');
+      expect(find.byType(AbritLogo), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('installation stays usable in the rail and uses opposite theme color', (tester) async {
+    final destination = ValueNotifier(AbritDestination.home);
+    final controller = TextEditingController();
+    int installs = 0;
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    for (final dark in [false, true]) {
+      await tester.pumpWidget(harness(destination: destination, controller: controller,
+          language: 'fa', dark: dark, onInstall: () => installs++));
+      await tester.pumpAndSettle();
+      final card = find.byKey(const ValueKey('abrit-install-card'));
+      final rect = tester.getRect(card);
+      expect(rect.right, lessThanOrEqualTo(800));
+      expect(rect.bottom, lessThan(600));
+      final color = tester.widget<Material>(card).color!;
+      expect(color.computeLuminance() > .5, dark);
+      await tester.tap(find.descendant(of: card, matching: find.byType(InkWell)));
+      expect(tester.takeException(), isNull);
+    }
+    expect(installs, 2);
+  });
+
+  testWidgets('connection options stay anchored after resize and dispatch the selected action', (tester) async {
+    final destination = ValueNotifier(AbritDestination.connection);
+    final controller = TextEditingController();
+    int transfers = 0;
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    for (final language in ['fa', 'en']) {
+      for (final size in [const Size(1280, 850), const Size(800, 600), const Size(480, 600)]) {
+        tester.view.physicalSize = size;
+        await tester.pumpWidget(harness(destination: destination, controller: controller,
+            language: language, onTransfer: () => transfers++));
+        await tester.pumpAndSettle();
+        final button = find.byKey(const ValueKey('abrit-connection-options'));
+        final anchor = tester.getRect(button);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        final menu = tester.getRect(find.byType(PopupMenuItem<int>).first);
+        expect((menu.left - anchor.left).abs() <= 20 ||
+            (menu.right - anchor.right).abs() <= 20, isTrue);
+        expect(menu.top, greaterThanOrEqualTo(anchor.bottom));
+        expect(menu.right, lessThanOrEqualTo(size.width));
+        await tester.tap(find.text('Transfer file'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PopupMenuItem<int>), findsNothing);
+        expect(tester.takeException(), isNull);
+      }
+    }
+    expect(transfers, 6);
+  });
+
+  testWidgets('about shows abritdesk with readable technical values in both directions', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    for (final language in ['fa', 'en']) {
+      for (final size in [const Size(480, 600), const Size(1024, 768)]) {
+        tester.view.physicalSize = size;
+        await tester.pumpWidget(MaterialApp(locale: Locale(language),
+          supportedLocales: const [Locale('fa'), Locale('en')],
+          localizationsDelegates: const [GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
+          home: Scaffold(body: AbritAbout(version: '1.5.0', buildDate: '2026-10-04',
+            fingerprint: 'A0 B1 C2 D3 E4 F5 0123456789ABCDEF0123456789ABCDEF',
+            deviceId: '195799164', onWebsiteOpen: () {}))));
+        await tester.pumpAndSettle();
+        expect(find.text('abritdesk'), findsOneWidget);
+        expect(find.textContaining('RustDesk'), findsNothing);
+        expect(find.textContaining('Purslane'), findsNothing);
+        expect(tester.widget<SelectableText>(find.byWidgetPredicate(
+            (widget) => widget is SelectableText && widget.data == '195799164')).textDirection, TextDirection.ltr);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
 
   for (final language in ['en', 'fa']) {
     for (final dark in [false, true]) {
