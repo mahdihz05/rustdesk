@@ -6,38 +6,11 @@ class AbritLogo extends StatelessWidget {
   const AbritLogo({super.key, this.size = 46});
   @override
   Widget build(BuildContext context) => Image.asset(
-        'assets/abrit/logo.png',
-        width: size,
+        'assets/abrit/wordmark.png',
+        width: size * 2.15,
         height: size,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(size * .17),
-            gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF4B95E8), Color(0xFF005ACB)]),
-          ),
-          child: CustomPaint(painter: _AbritMark()),
-        ),
       );
-}
-
-class _AbritMark extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(size.width * .5, size.height * .2)
-      ..lineTo(size.width * .8, size.height * .77)
-      ..lineTo(size.width * .2, size.height * .77)
-      ..close();
-    canvas.drawPath(path, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(_AbritMark oldDelegate) => false;
 }
 
 class AbritCard extends StatelessWidget {
@@ -134,7 +107,7 @@ class AbritHero extends StatelessWidget {
   const AbritHero({super.key, required this.short});
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-        constraints: BoxConstraints(minHeight: short ? 140 : 210),
+        constraints: BoxConstraints(minHeight: short ? 140 : 180),
         child: LayoutBuilder(builder: (context, constraints) {
           final showImage = constraints.maxWidth >= 550;
           return Stack(children: [
@@ -198,7 +171,7 @@ class AbritHero extends StatelessWidget {
                             Text(
                                 abritText(
                                     context,
-                                    'Connect to your devices from anywhere with Abrit Desk.',
+                                    'Connect to your devices from anywhere with abritdesk.',
                                     'با ابریت دسک از هر کجا، به سادگی و با امنیت بالا به دستگاه‌های خود متصل شوید.'),
                                 style: TextStyle(
                                     color: AbritColors.muted(context),
@@ -217,7 +190,7 @@ class AbritBanner extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
-            constraints: BoxConstraints(minHeight: short ? 96 : 154),
+            constraints: BoxConstraints(minHeight: short ? 96 : 140),
             color: const Color(0xFF06162E),
             child: Stack(children: [
               Positioned.fill(
@@ -228,7 +201,7 @@ class AbritBanner extends StatelessWidget {
                   child: Container(
                       color: const Color(0xFF06162E).withOpacity(.6))),
               ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: short ? 96 : 154),
+                  constraints: BoxConstraints(minHeight: short ? 96 : 140),
                   child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 24, vertical: 12),
@@ -273,13 +246,13 @@ class AbritBanner extends StatelessWidget {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text('ABRIT',
+                                            Text('abritdesk',
                                                 style: TextStyle(
                                                     color: Colors.white,
                                                     fontSize: 22,
                                                     fontWeight: FontWeight.w700,
                                                     letterSpacing: 2)),
-                                            Text('ABRITDESK.IR',
+                                            Text('abritdesk.ir',
                                                 style: TextStyle(
                                                     color: Color(0xFF45C4FA),
                                                     fontSize: 12,

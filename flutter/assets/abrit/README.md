@@ -1,16 +1,16 @@
-# Abrit Desk artwork
+# abritdesk artwork
 
-`logo.png` and `logo.svg` are temporary reference-derived marks, pending the
-owner's original logo. Replace the approved raster using:
+`wordmark.png` preserves the supplied Abrit logo and tagline. `logo.png` and
+`logo.svg` provide the cloud mark for app icons. The original is retained at
+`res/abrit/logo-source.jpg`. Regenerate all resources using:
 
 ```
-python res/abrit/generate_brand_assets.py --logo path/to/approved-logo.png --monochrome-logo path/to/transparent-mark.png
+python res/abrit/generate_brand_assets.py
 ```
 
 This regenerates Flutter, Windows executable/tray, Linux, macOS, Android and
 iOS icons while retaining package IDs and executable names.
-The monochrome source uses the transparent mark's alpha channel. Without it,
-tray and notification resources retain the temporary triangle silhouette.
+Tray and notification resources use the supplied cloud mark's silhouette.
 
 `servers.png` and `hero-light.png` are independently generated imagegen assets.
 Banner prompt:

@@ -637,6 +637,27 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       }
     }
 
+    if (abrit) {
+      return Padding(
+        padding: EdgeInsets.only(top: marginTop),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(color: AbritColors.surface(context),
+            borderRadius: BorderRadius.circular(12)),
+          child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (title.isNotEmpty) Text(translate(title),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (content.isNotEmpty) Text(translate(content),
+                style: TextStyle(fontSize: 12, color: AbritColors.muted(context))),
+              if (btnText.isNotEmpty) TextButton(onPressed: onPressed,
+                child: Text(translate(btnText))),
+              if (help != null) TextButton(
+                onPressed: () async => launchUrl(Uri.parse(link!)), child: Text(translate(help))),
+              if (closeButton == true) IconButton(onPressed: closeCard,
+                icon: const Icon(Icons.close, size: 18)),
+            ])));
+    }
     return Stack(
       children: [
         Container(

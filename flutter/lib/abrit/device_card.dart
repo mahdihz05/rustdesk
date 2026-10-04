@@ -29,7 +29,7 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
       widget.password.isNotEmpty && widget.password != '-';
 
   Widget _valueRow(String value, {bool password = false}) => Container(
-      constraints: const BoxConstraints(minHeight: 64),
+      constraints: const BoxConstraints(minHeight: 60),
       padding: const EdgeInsetsDirectional.only(start: 18, end: 6),
       decoration: BoxDecoration(
           color: password
@@ -131,11 +131,11 @@ class _AbritDeviceCardState extends State<AbritDeviceCard> {
           Tooltip(
               message: abritText(
                   context, 'Open security settings', 'بازکردن تنظیمات امنیتی'),
-              child: Switch(
+              child: SizedBox(height: 36, child: Switch(
                   value: widget.unattended,
                   onChanged: widget.onSecuritySettings == null
                       ? null
-                      : (_) => widget.onSecuritySettings!())),
+                      : (_) => widget.onSecuritySettings!()))),
         ]),
         widget.warning,
       ]));

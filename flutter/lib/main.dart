@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'abrit/brand.dart';
 import 'abrit/runtime.dart';
+import 'abrit/smoke.dart';
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -40,6 +41,7 @@ late List<String> kBootArgs;
 Future<void> main(List<String> args) async {
   earlyAssert();
   WidgetsFlutterBinding.ensureInitialized();
+  installAbritSmokeErrorReporting();
 
   debugPrint("launch args: $args");
   kBootArgs = List.from(args);
@@ -135,6 +137,7 @@ Future<void> initEnv(String appType) async {
 void runMainApp(bool startService) async {
   // register uni links
   await initEnv(kAppTypeMain);
+  await prepareAbritSmokeLanguage();
   checkUpdate();
   // trigger connection status updater
   await bind.mainCheckConnectStatus();
@@ -513,7 +516,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           darkTheme: isDesktop && desktopType == DesktopType.main && !bind.isIncomingOnly()
               ? abritTheme(MyTheme.darkTheme, persian: abritLocale().languageCode == 'fa')
               : MyTheme.darkTheme,
-          themeMode: MyTheme.currentThemeMode(),
+          themeMode: abritSmokeThemeMode() ?? MyTheme.currentThemeMode(),
           home: isDesktop
               ? const DesktopTabPage()
               : isWeb

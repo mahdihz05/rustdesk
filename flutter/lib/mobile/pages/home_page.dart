@@ -150,7 +150,7 @@ class HomePageState extends State<HomePage> {
         ],
       );
     }
-    return Text('Abrit Desk');
+    return Text('abritdesk');
   }
 }
 
@@ -166,7 +166,7 @@ class WebHomePage extends StatelessWidget {
       // backgroundColor: MyTheme.grayBg,
       appBar: AppBar(
         centerTitle: true,
-        title: Text("Abrit Desk (Preview)"),
+        title: Text("abritdesk (Preview)"),
         actions: connectionPage.appBarActions,
       ),
       body: connectionPage,

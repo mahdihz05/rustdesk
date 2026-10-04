@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-const abritProductName = 'Abrit Desk';
+const abritProductName = 'abritdesk';
 const abritWebsite = 'https://abritdesk.ir';
 
 enum AbritDestination { home, connection, devices, addressBook, settings }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'brand.dart';
 import 'widgets.dart';
+import 'smoke.dart';
 
 class AbritDesktopShell extends StatefulWidget {
   final Widget child;
@@ -139,11 +140,11 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text('ABRIT',
+                                            Text('abritdesk',
                                                 style: TextStyle(
                                                     fontWeight:
                                                         FontWeight.w700)),
-                                            Text('ABRITDESK.IR',
+                                            Text('abritdesk.ir',
                                                 style: TextStyle(
                                                     fontSize: 10,
                                                     color: Color(0xFF717B8B),
@@ -175,7 +176,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
             if (mounted) widget.onLayout?.call(metrics);
           });
         }
-        return AbritScope(
+        return AbritSmokeCapture(onSelected: widget.onSelected, child: AbritScope(
           metrics: metrics,
           destination: widget.destination,
           child: ColoredBox(
@@ -211,7 +212,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
-                                              const Text('ABRIT DESK',
+                                              const Text('abritdesk',
                                                   textDirection:
                                                       TextDirection.ltr,
                                                   maxLines: 1,
@@ -265,6 +266,6 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                   ],
                 ])),
               ])),
-        );
+        ));
       });
 }

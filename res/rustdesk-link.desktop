@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Abrit Desk
+Name=abritdesk
 NoDisplay=true
 MimeType=x-scheme-handler/rustdesk;
 TryExec=rustdesk

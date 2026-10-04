@@ -67,17 +67,19 @@ class AbritHomeLayout extends StatelessWidget {
                                     SizedBox(
                                         key: const ValueKey('abrit-form'),
                                         width: cardWidth,
-                                        child:
-                                            AbritCard(child: connectionCard)),
+                                        child: ConstrainedBox(
+                                            constraints: BoxConstraints(minHeight:
+                                                scope.metrics.sideBySide ? 309 : 0),
+                                            child: AbritCard(child: connectionCard))),
                                   ]);
                             }),
-                            help,
                             const SizedBox(height: 20),
                             Offstage(
                                 offstage:
                                     destination == AbritDestination.connection,
                                 child: AbritBanner(short: scope.metrics.short)),
                             const SizedBox(height: 8),
+                            help,
                           ]))),
               Offstage(
                   offstage: !showingPeers,
@@ -98,8 +100,10 @@ class AbritHomeLayout extends StatelessWidget {
                             Expanded(child: peers),
                           ]))),
             ])),
-            SingleChildScrollView(
-                scrollDirection: Axis.horizontal, child: status),
+            LayoutBuilder(builder: (context, constraints) =>
+                SingleChildScrollView(scrollDirection: Axis.horizontal,
+                  child: SizedBox(width: constraints.maxWidth < 680
+                      ? 680 : constraints.maxWidth, child: status))),
           ]);
         });
   }

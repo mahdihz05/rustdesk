@@ -84,7 +84,7 @@ def make_parser():
         "--app-name", type=str, default="RustDesk", help="The app name."
     )
     parser.add_argument(
-        "--display-name", type=str, default="Abrit Desk", help="Visible product name; does not change installation identity."
+        "--display-name", type=str, default="abritdesk", help="Visible product name; does not change installation identity."
     )
     parser.add_argument(
         "-v", "--version", type=str, default="", help="The app version."

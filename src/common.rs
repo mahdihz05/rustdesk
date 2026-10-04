@@ -1066,7 +1066,7 @@ pub fn get_app_name() -> String {
 }
 
 pub fn get_display_app_name() -> &'static str {
-    "Abrit Desk"
+    "abritdesk"
 }
 
 #[inline]

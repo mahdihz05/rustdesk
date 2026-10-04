@@ -1,4 +1,4 @@
-name: Abrit Desk Windows Preview
+name: abritdesk Windows Preview
 
 on:
   push:
@@ -120,7 +120,7 @@ jobs:
         run: |
           "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
 
-      - name: Build Abrit Desk preview
+      - name: Build abritdesk preview
         shell: pwsh
         run: |
           python3 .\build.py --portable --flutter --skip-portable-pack
@@ -129,13 +129,27 @@ jobs:
             throw "Preview executable was not produced"
           }
           $release = ".\flutter\build\windows\x64\runner\Release"
+          Move-Item "$release\rustdesk.exe" "$release\abritdesk.exe"
           foreach ($file in @('librustdesk.dll', 'flutter_windows.dll', 'data/app.so', 'data/flutter_assets/assets/abrit/logo.png', 'data/flutter_assets/assets/abrit/Vazirmatn.ttf', 'data/flutter_assets/assets/abrit/hero-light.png')) {
             if (-not (Test-Path (Join-Path $release $file))) { throw "Missing preview runtime file: $file" }
           }
-          "Abrit Desk Windows x64 preview`nCommit: $env:GITHUB_SHA`nExtract the entire archive, then run rustdesk.exe.`nKeep data/ and all DLLs beside the executable." | Set-Content "$release\PREVIEW.txt" -Encoding UTF8
+          "abritdesk Windows x64 preview`nCommit: $env:GITHUB_SHA`nExtract the entire archive, then run abritdesk.exe.`nKeep data/ and all DLLs beside the executable." | Set-Content "$release\PREVIEW.txt" -Encoding UTF8
           Get-ChildItem $release -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object {
             "$($_.Hash.ToLower())  $($_.Path.Substring((Resolve-Path $release).Path.Length + 1))"
           } | Set-Content "$release\SHA256SUMS.txt" -Encoding UTF8
+
+      - name: Run actual Windows application in both languages and themes
+        shell: pwsh
+        run: ./res/abrit/smoke_windows.ps1 -Executable ./flutter/build/windows/x64/runner/Release/abritdesk.exe -Output ./ui-screenshots
+
+      - name: Upload actual application screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-ui-screenshots
+          path: ui-screenshots/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Windows preview
         id: preview
@@ -152,10 +166,10 @@ jobs:
           ARTIFACT_URL: ${{ steps.preview.outputs.artifact-url }}
         run: |
           @"
-          ### Abrit Desk Windows x64 preview
+          ### abritdesk Windows x64 preview
           [Download the complete Windows bundle]($env:ARTIFACT_URL)
 
-          Extract all files and run **rustdesk.exe**. The executable displays the Abrit Desk brand.
+          Extract all files and run **abritdesk.exe**. The executable displays the abritdesk brand.
           The preview includes the responsive Persian/English UI and keeps RustDesk's window sizing and settings identity.
           This is an unsigned UI preview with software codecs; installers and other platforms are built by the existing workflows.
 

@@ -90,7 +90,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   // Uri links dispatch
-  const std::wstring display_name = L"Abrit Desk";
+  const std::wstring display_name = L"abritdesk";
   HWND hwnd = ::FindWindowW(getWindowClassName(), display_name.c_str());
   if (hwnd == NULL) {
     hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());

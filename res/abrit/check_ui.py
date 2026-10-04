@@ -33,6 +33,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  window_manager:
+    git:
+      url: https://github.com/rustdesk-org/window_manager
+      ref: cf4aef0512092fad9344a27ffe1c47ad83269dfc
   flutter_localizations:
     sdk: flutter
 dev_dependencies:

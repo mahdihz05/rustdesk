@@ -513,8 +513,8 @@ class _DesktopTabState extends State<DesktopTab>
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      Obx(() {
-        if (widget.showTabBar && stateGlobal.showTabBar.isTrue &&
+      if (widget.showTabBar) Obx(() {
+        if (stateGlobal.showTabBar.isTrue &&
             !(kUseCompatibleUiMode && isHideSingleItem())) {
           final showBottomDivider = _showTabBarBottomDivider(tabType);
           return SizedBox(
