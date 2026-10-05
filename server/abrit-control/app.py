@@ -19,7 +19,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 Image.MAX_IMAGE_PIXELS = 16_000_000
-DOWNLOAD = 'https://github.com/mahdihz05/rustdesk/releases/download/abritdesk-v1.5.1-control-preview.1/abritdesk-windows-x64-1.5.1-8a91b2cca.zip'
+DOWNLOAD = 'https://github.com/mahdihz05/rustdesk/releases/download/abritdesk-v1.5.2-control-preview.1/abritdesk-windows-x64-1.5.2.zip'
 
 
 def version(value):
@@ -74,7 +74,7 @@ def initial_document(base_url):
                    'title': {'fa': 'راهکاری امن برای دسترسی از راه دور', 'en': 'Secure remote access'},
                    'subtitle': {'fa': 'مناسب کسب‌وکارها و تیم‌های حرفه‌ای', 'en': 'Built for businesses and professional teams'},
                    'link_url': 'https://abritdesk.ir'},
-        'update': {'latest_version': '1.5.1', 'minimum_version': '0.0.0', 'mandatory': False,
+        'update': {'latest_version': '1.5.2', 'minimum_version': '0.0.0', 'mandatory': False,
                    'download_url': DOWNLOAD,
                    'message': {'fa': 'نسخهٔ جدید abritdesk آمادهٔ دریافت است.', 'en': 'A new version of abritdesk is available.'}},
     }
