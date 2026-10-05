@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - feat/abritdesk-responsive-preview
+    paths-ignore:
+      - 'server/**'
+      - 'docs/**'
+      - '.github/workflows/abritdesk-control-tests.yml'
   workflow_dispatch:
 
 env:
@@ -12,7 +16,7 @@ env:
   FLUTTER_VERSION: "3.24.5"
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-binary-cache,readwrite'
-  ABRIT_CLIENT_API: 'https://abritdesk.ir/api/v1/client/windows'
+  ABRIT_CLIENT_API: 'https://serverdesk.abrit.cloud/api/v1/client/windows'
   ABRIT_CLIENT_FAIL_CLOSED: 'false'
 
 concurrency:

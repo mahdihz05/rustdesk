@@ -1,0 +1,21 @@
+[Unit]
+Description=abritdesk banner and version control
+After=network.target
+
+[Service]
+User=abrit-control
+Group=abrit-control
+WorkingDirectory=/opt/abrit-control
+Environment=ABRIT_CONTROL_CONFIG=/etc/abrit-control/config.json
+ExecStart=/opt/abrit-control/.venv/bin/gunicorn --bind 127.0.0.1:8088 --workers 2 --threads 2 --timeout 30 --forwarded-allow-ips=127.0.0.1 "app:create_app()"
+Restart=on-failure
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/abrit-control
+
+[Install]
+WantedBy=multi-user.target

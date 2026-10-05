@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block body %}
+<main class="login-layout"><div class="login-brand"><img src="{{ url_for('static', filename='wordmark.png') }}" alt="لوگوی ابریت"><span dir="ltr">abritdesk</span><p>مدیریت محتوا و نسخه‌های برنامه</p></div>
+<form class="login-box" method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<span class="eyebrow">پنل مدیریت</span><h1>خوش آمدید</h1><p class="muted">با حساب پنل وارد شوید. این حساب از ورود SSH سرور جداست.</p>
+{% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
+<label for="username">نام کاربری</label><input id="username" name="username" required autocomplete="username" dir="ltr" autofocus maxlength="80">
+<label for="password">رمز پنل</label><input id="password" name="password" type="password" required autocomplete="current-password" dir="ltr" maxlength="512">
+<button class="primary" type="submit">ورود به پنل</button></form></main>
+{% endblock %}

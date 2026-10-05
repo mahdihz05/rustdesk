@@ -1,0 +1,26 @@
+name: abritdesk Control API Tests
+
+on:
+  push:
+    paths:
+      - 'server/abrit-control/**'
+      - '.github/workflows/abritdesk-control-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Test management and policy API
+        working-directory: server/abrit-control
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+          .venv/bin/python -m unittest -v test_app
+          sh -n deploy/install.sh
