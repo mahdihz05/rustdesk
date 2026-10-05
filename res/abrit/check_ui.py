@@ -23,9 +23,10 @@ def check(sdk):
         (project / "test").mkdir()
         (project / "assets").mkdir()
         for source in (ROOT / "flutter/lib/abrit").glob("*.dart"):
-            if source.name not in ("runtime.dart", "install_prompt.dart"):
+            if source.name not in ("runtime.dart", "install_prompt.dart", "control_runtime.dart"):
                 shutil.copy2(source, project / "lib/abrit" / source.name)
         shutil.copy2(ROOT / "flutter/test/abrit_layout_test.dart", project / "test")
+        shutil.copy2(ROOT / "flutter/test/abrit_control_test.dart", project / "test")
         shutil.copytree(ROOT / "flutter/assets/abrit", project / "assets/abrit")
         (project / "pubspec.yaml").write_text("""name: flutter_hbb
 environment:
@@ -61,7 +62,7 @@ flutter:
         flutter = [str(dart), str(cli), "--suppress-analytics", "--no-version-check"]
         subprocess.run(flutter + ["pub", "get"], cwd=project, check=True)
         subprocess.run([str(dart), "analyze", "lib", "test"], cwd=project, check=True)
-        subprocess.run(flutter + ["test", "--no-pub", "test/abrit_layout_test.dart",
+        subprocess.run(flutter + ["test", "--no-pub", "test",
                                   "--reporter", "expanded"], cwd=project, check=True)
 
 

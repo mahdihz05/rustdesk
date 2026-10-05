@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'abrit/brand.dart';
+import 'abrit/control_runtime.dart';
 
 import 'package:back_button_interceptor/back_button_interceptor.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -2535,6 +2536,10 @@ connectMainDesktop(String id,
     String? password,
     String? connToken,
     bool? isSharedPassword}) async {
+  if (isWindows && abritConnectionBlocked()) {
+    showToast(translate('abritdesk must be updated before it can be used.'));
+    return;
+  }
   if (isFileTransfer) {
     await rustDeskWinManager.newFileTransfer(id,
         password: password,

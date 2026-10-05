@@ -225,6 +225,7 @@ pub fn is_option_fixed(key: &str) -> bool {
 
 #[inline]
 pub fn get_local_option(key: String) -> String {
+    if let Some(value) = crate::abrit_policy::get_option(&key) { return value; }
     crate::get_local_option(&key)
 }
 
@@ -246,6 +247,7 @@ pub fn get_builtin_option(key: &str) -> String {
 
 #[inline]
 pub fn set_local_option(key: String, value: String) {
+    if crate::abrit_policy::set_option(&key) { return; }
     LocalConfig::set_option(key.clone(), value);
 }
 

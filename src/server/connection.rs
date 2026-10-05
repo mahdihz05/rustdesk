@@ -1152,6 +1152,11 @@ impl Connection {
                     }
                 }
                 _ = second_timer.tick() => {
+                    if crate::abrit_policy::blocked() {
+                        conn.send_close_reason_no_retry(crate::abrit_policy::BLOCK_REASON).await;
+                        conn.on_close("abritdesk update required", true).await;
+                        break;
+                    }
                     #[cfg(windows)]
                     conn.portable_check();
                     raii::AuthedConnID::check_wake_lock_on_setting_changed();
@@ -1364,6 +1369,7 @@ impl Connection {
                         }
                     },
                     _ = self.timer.tick() => {
+                        if crate::abrit_policy::blocked() { bail!(crate::abrit_policy::BLOCK_REASON); }
                         if last_recv_time.elapsed() >= H1 {
                             bail!("Timeout");
                         }
@@ -2836,6 +2842,10 @@ impl Connection {
     }
 
     async fn on_message(&mut self, msg: Message) -> bool {
+        if crate::abrit_policy::blocked() {
+            self.send_login_error(crate::abrit_policy::BLOCK_REASON).await;
+            return false;
+        }
         if let Some(message::Union::Misc(misc)) = &msg.union {
             // Move the CloseReason forward, as this message needs to be received when unauthorized, especially for kcp.
             if let Some(misc::Union::CloseReason(s)) = &misc.union {

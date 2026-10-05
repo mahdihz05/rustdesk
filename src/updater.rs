@@ -86,6 +86,7 @@ pub fn update_controlling_session_count(count: usize) {
 
 #[allow(dead_code)]
 pub fn start_auto_update() {
+    if crate::abrit_policy::enabled() { return; }
     let _sender = TX_MSG.lock().unwrap();
 }
 

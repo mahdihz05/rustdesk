@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/rendering.dart';
 import 'package:window_manager/window_manager.dart';
 import 'brand.dart';
+import 'control.dart';
 
 String? get abritSmokeDirectory =>
     !kIsWeb && Platform.isWindows ? Platform.environment['ABRIT_UI_SMOKE_DIR'] : null;
@@ -65,6 +66,10 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
   Future<void> _capture() async {
     try {
       await Future<void>.delayed(const Duration(seconds: 4));
+      for (var i = 0; i < 15 && mounted &&
+          AbritControlScope.maybeOf(context)?.state.checking == true; i++) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
       await windowManager.unmaximize();
       for (final size in [
         const Size(800, 600),

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "revision": "2026-10-05-1",
+  "poll_interval_seconds": 30,
+  "banner": {
+    "enabled": true,
+    "revision": "banner-1",
+    "image_url": "https://abritdesk.ir/media/banner-1.webp",
+    "image_url_dark": "https://abritdesk.ir/media/banner-1-dark.webp",
+    "title": {
+      "fa": "راهکاری امن برای دسترسی از راه دور",
+      "en": "Secure remote access"
+    },
+    "subtitle": {
+      "fa": "مناسب کسب‌وکارها و تیم‌های حرفه‌ای",
+      "en": "Built for businesses and professional teams"
+    },
+    "link_url": "https://abritdesk.ir"
+  },
+  "update": {
+    "latest_version": "1.5.1",
+    "minimum_version": "1.5.1",
+    "mandatory": false,
+    "download_url": "https://github.com/mahdihz05/rustdesk/releases/latest",
+    "message": {
+      "fa": "برای دریافت امکانات جدید، برنامه را بروزرسانی کنید.",
+      "en": "Update abritdesk to receive the new features."
+    }
+  }
+}

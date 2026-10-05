@@ -1000,6 +1000,7 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 }
 
 pub fn check_software_update() {
+    if crate::abrit_policy::enabled() { return; }
     if is_custom_client() {
         return;
     }

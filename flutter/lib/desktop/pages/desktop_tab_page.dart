@@ -3,6 +3,8 @@ import '../../abrit/brand.dart';
 import '../../abrit/shell.dart';
 import '../../abrit/install_prompt.dart';
 import '../../abrit/smoke.dart';
+import '../../abrit/control_runtime.dart';
+import '../../abrit/control_widgets.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
@@ -108,7 +110,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabWidget = Container(
+    final tabWidget = AbritControlHost(controller: abritControl, child: Container(
         child: Scaffold(
             backgroundColor: Theme.of(context).colorScheme.background,
             body: bind.isIncomingOnly() ? DesktopTab(
@@ -177,7 +179,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                   isClose: false,
                 ),
               ),
-            ))));
+            )))));
     return isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(

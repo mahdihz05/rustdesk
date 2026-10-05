@@ -8,12 +8,14 @@ class AbritAbout extends StatelessWidget {
   final String fingerprint;
   final String deviceId;
   final VoidCallback onWebsiteOpen;
+  final Widget? updates;
   const AbritAbout(
       {super.key,
       required this.version,
       required this.buildDate,
       required this.fingerprint,
       required this.deviceId,
+      this.updates,
       required this.onWebsiteOpen});
 
   @override
@@ -54,6 +56,7 @@ class AbritAbout extends StatelessWidget {
                 icon: const Icon(Icons.open_in_new_rounded, size: 18),
                 label: const Text('abritdesk.ir',
                     textDirection: TextDirection.ltr))),
+        if (updates != null) ...[const SizedBox(height: 16), updates!],
       ])));
 
   Widget _detail(String label, String value) => Padding(

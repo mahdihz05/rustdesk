@@ -378,6 +378,7 @@ impl Client {
         (i32, String),
     )> {
         debug_assert!(peer == interface.get_id());
+        if crate::abrit_policy::blocked() { bail!(crate::abrit_policy::BLOCK_REASON); }
         interface.update_direct(None);
         interface.update_received(false);
         match Self::_start(peer, key, token, conn_type, interface.clone()).await {

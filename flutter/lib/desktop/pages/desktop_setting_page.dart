@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/widgets.dart';
 import '../../abrit/about.dart';
+import '../../abrit/control_widgets.dart';
 import '../../abrit/runtime.dart';
 import '../../abrit/smoke.dart';
 import 'package:flutter_hbb/common.dart';
@@ -2574,6 +2575,7 @@ class _AboutState extends State<_About> {
       final myId = data['myId'].toString();
       if (isDesktop) {
         return AbritAbout(version: version, buildDate: buildDate,
+            updates: const AbritUpdateNotice(alwaysVisible: true),
             fingerprint: fingerprint, deviceId: myId,
             onWebsiteOpen: () => launchUrl(Uri.parse(abritWebsite)));
       }

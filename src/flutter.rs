@@ -1286,6 +1286,7 @@ pub fn session_add(
     is_shared_password: bool,
     conn_token: Option<String>,
 ) -> ResultType<FlutterSession> {
+    if crate::abrit_policy::blocked() { hbb_common::bail!(crate::abrit_policy::BLOCK_REASON); }
     let conn_type = if is_file_transfer {
         ConnType::FILE_TRANSFER
     } else if is_view_camera {

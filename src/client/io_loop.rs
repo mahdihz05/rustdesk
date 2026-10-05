@@ -305,6 +305,10 @@ impl<T: InvokeUiSession> Remote<T> {
                             self.handle_local_clipboard_msg(&mut peer, _msg).await;
                         }
                         _ = self.timer.tick() => {
+                            if crate::abrit_policy::blocked() {
+                                self.handler.msgbox("error", "Connection Error", crate::abrit_policy::BLOCK_REASON, "");
+                                break;
+                            }
                             if last_recv_time.elapsed() >= SEC30 {
                                 self.handler.msgbox("error", "Connection Error", "Timeout", "");
                                 break;

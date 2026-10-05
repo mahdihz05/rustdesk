@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'brand.dart';
 import 'widgets.dart';
+import 'live_banner.dart';
 
 class AbritHomeLayout extends StatelessWidget {
   final Widget? deviceCard;
@@ -81,7 +82,7 @@ class AbritHomeLayout extends StatelessWidget {
                             Offstage(
                                 offstage:
                                     destination == AbritDestination.connection,
-                                child: AbritBanner(key: const ValueKey('abrit-home-banner'),
+                                child: AbritLiveBanner(key: const ValueKey('abrit-home-banner'),
                                     short: scope.metrics.short, compact: compact)),
                             const SizedBox(height: 8),
                             help,

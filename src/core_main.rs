@@ -40,6 +40,7 @@ pub fn core_main() -> Option<Vec<String>> {
         return None;
     }
     let mut args = Vec::new();
+    crate::abrit_policy::start();
     let mut flutter_args = Vec::new();
     let mut i = 0;
     let mut _is_elevate = false;

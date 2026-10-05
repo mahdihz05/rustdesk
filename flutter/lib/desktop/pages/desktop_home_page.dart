@@ -27,6 +27,7 @@ import '../widgets/button.dart';
 import '../../abrit/device_card.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/home.dart';
+import '../../abrit/control_widgets.dart';
 
 class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({Key? key}) : super(key: key);
@@ -92,7 +93,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           _buildAbritDeviceCard(context, model))),
       connectionCard: form,
       peers: peers,
-      help: Obx(() => buildHelpCards(stateGlobal.updateUrl.value)),
+      help: Column(children: [const AbritUpdateNotice(),
+        Obx(() => buildHelpCards(stateGlobal.updateUrl.value))]),
       status: status,
     );
   }
