@@ -84,6 +84,8 @@ fn fetch(client: &reqwest::blocking::Client, etag: &str) -> Result<Option<(Manif
 fn worker(mut manifest: Option<Manifest>) {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(8))
+        // Re-resolve the stable API domain when moving the server through DNS.
+        .pool_max_idle_per_host(0)
         .user_agent(concat!("abritdesk/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.url().scheme() != "https" || attempt.previous().len() >= 3 {
