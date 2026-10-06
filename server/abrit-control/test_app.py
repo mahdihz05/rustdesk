@@ -1,5 +1,7 @@
 import io
 import json
+import copy
+import re
 from pathlib import Path
 import secrets
 import tempfile
@@ -13,6 +15,7 @@ from werkzeug.security import generate_password_hash
 from app import create_app, initial_document, validate_document, version
 from deploy.backup import snapshot
 from deploy.restore import verify
+from history import changed_fields, FIELDS
 
 
 class ControlTests(unittest.TestCase):
@@ -142,6 +145,102 @@ class ControlTests(unittest.TestCase):
         self.assertNotEqual(after.json['banner']['revision'], before.json['banner']['revision'])
         self.assertEqual(after.json['banner']['title']['fa'], 'بنر جدید')
         self.assertEqual(after.json['update']['minimum_version'], '0.0.0')
+
+    def test_history_keywords_only_name_changed_fields(self):
+        self.assertEqual(changed_fields(self.doc, None), ['تنظیمات اولیه'])
+        for path, label in FIELDS:
+            with self.subTest(field=path):
+                changed = copy.deepcopy(self.doc)
+                target = changed
+                keys = path.split('.')
+                for key in keys[:-1]:
+                    target = target[key]
+                original = target[keys[-1]]
+                target[keys[-1]] = not original if isinstance(original, bool) else 60 if isinstance(original, int) else 'changed'
+                self.assertEqual(changed_fields(changed, self.doc), [label])
+        unchanged = copy.deepcopy(self.doc)
+        unchanged['revision'] = 'new-publication'
+        unchanged['banner']['revision'] = 'new-banner-revision'
+        self.assertEqual(changed_fields(unchanged, self.doc), ['بدون تغییر محتوا'])
+        del unchanged['update']
+        self.assertIn('نمایش بروزرسانی', changed_fields(unchanged, self.doc))
+
+    def seed_history(self, total):
+        with self.app.control_db() as db:
+            for index in range(1, total):
+                doc = copy.deepcopy(self.doc)
+                doc['update']['latest_version'] = f'1.5.{index}'
+                db.execute('INSERT INTO history(document,updated,actor,action) VALUES(?,?,?,?)',
+                           (json.dumps(doc), index + 1, 'manager', 'ذخیرهٔ محتوا'))
+
+    def test_history_pagination_preserves_all_records_and_api(self):
+        self.login()
+        self.seed_history(25)
+        original = self.document()
+        for page, expected in ((1, range(25, 15, -1)), (2, range(15, 5, -1)), (3, range(5, 0, -1))):
+            response = self.get(f'/admin?history_page={page}')
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertEqual([int(value) for value in re.findall(r'data-history-id="(\d+)"', html)], list(expected))
+            self.assertIn(f'صفحهٔ {page} از 3', html)
+            self.assertEqual('rel="prev"' in html, page > 1)
+            self.assertEqual('rel="next"' in html, page < 3)
+            if page == 2:
+                first = html.split('data-history-id="15"', 1)[1].split('data-history-id="14"', 1)[0]
+                self.assertIn('آخرین نسخه', first)
+                self.assertNotIn('تنظیمات اولیه', first)
+        self.assertEqual(self.document(), original)
+        with self.app.control_db() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM history').fetchone()[0], 25)
+        with self.client.session_transaction(base_url=self.base) as session:
+            token = session['csrf']
+        self.post('/admin/restore/5', {'csrf': token, 'revision': original['revision']})
+        self.assertEqual(self.document()['update']['latest_version'], '1.5.4')
+        newest = self.get('/admin').get_data(as_text=True)
+        self.assertIn('data-history-id="26"', newest)
+        self.assertIn('آخرین نسخه', newest)
+
+    def test_history_page_boundaries_invalid_input_and_empty_history(self):
+        self.login()
+        self.seed_history(20)
+        for value, expected in (('', 1), ('invalid', 1), ('-4', 1), ('0', 1), ('999999999999999999', 2)):
+            response = self.get('/admin?history_page=' + value)
+            self.assertEqual(response.status_code, 200)
+            html = response.get_data(as_text=True)
+            self.assertEqual(len(re.findall(r'data-history-id="(\d+)"', html)), 10)
+            self.assertIn(f'صفحهٔ {expected} از 2', html)
+            self.assertEqual('rel="next"' in html, expected == 1)
+        with self.app.control_db() as db:
+            db.execute('DELETE FROM history')
+        response = self.get('/admin?history_page=2')
+        html = response.get_data(as_text=True)
+        self.assertIn('هنوز تغییری ثبت نشده است.', html)
+        self.assertIn('نمایش 0 تا 0 از 0 تغییر', html)
+        self.assertNotIn('rel="next"', html)
+        self.assertNotIn('rel="prev"', html)
+
+    def test_history_save_without_content_change_and_changed_banner(self):
+        self.post('/admin/save', self.form())
+        with self.client.session_transaction(base_url=self.base) as session:
+            token = session['csrf']
+        doc = self.document()
+        form = {'csrf': token, 'revision': doc['revision'], 'interval': '30', 'banner_enabled': 'on',
+                'image_url': doc['banner']['image_url'], 'image_url_dark': '',
+                'title_fa': doc['banner']['title']['fa'], 'title_en': doc['banner']['title']['en'],
+                'subtitle_fa': doc['banner']['subtitle']['fa'], 'subtitle_en': doc['banner']['subtitle']['en'],
+                'link_url': doc['banner']['link_url'], 'update_mode': 'optional',
+                'latest': doc['update']['latest_version'], 'download_url': doc['update']['download_url'],
+                'message_fa': doc['update']['message']['fa'], 'message_en': doc['update']['message']['en']}
+        self.post('/admin/save', form)
+        html = self.get('/admin').get_data(as_text=True)
+        first = html.split('data-history-id="3"', 1)[1].split('data-history-id="2"', 1)[0]
+        self.assertIn('بدون تغییر محتوا', first)
+        form.update(revision=self.document()['revision'], title_fa='عنوان تغییرکرده')
+        self.post('/admin/save', form)
+        html = self.get('/admin').get_data(as_text=True)
+        first = html.split('data-history-id="4"', 1)[1].split('data-history-id="3"', 1)[0]
+        self.assertIn('عنوان فارسی بنر', first)
+        self.assertNotIn('آخرین نسخه', first)
 
     def test_force_requires_acknowledgement(self):
         original = self.document()

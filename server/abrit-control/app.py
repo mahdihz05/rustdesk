@@ -18,6 +18,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from history import history_page
+
 Image.MAX_IMAGE_PIXELS = 16_000_000
 DOWNLOAD = 'https://github.com/mahdihz05/rustdesk/releases/download/abritdesk-v1.5.2-control-preview.1/abritdesk-windows-x64-1.5.2.zip'
 
@@ -206,14 +208,14 @@ def create_app(config=None):
     def dashboard():
         doc, updated = state()
         with db() as connection:
-            history = connection.execute('SELECT id, updated, actor, action FROM history ORDER BY id DESC LIMIT 20').fetchall()
+            history, pagination = history_page(connection, request.args.get('history_page', 1, type=int))
         update = doc.get('update') or {}
         mode = 'off' if not update else 'mandatory' if update.get('mandatory') else 'minimum' if version(update['minimum_version']) > (0, 0, 0) else 'optional'
         preview_image = doc['banner'].get('image_url', '')
         prefix = app.config['BASE_URL'] + '/'
         if preview_image.startswith(prefix):
             preview_image = '/' + preview_image[len(prefix):]
-        return render_template('dashboard.html', doc=doc, update=update, mode=mode, updated=updated, history=history, preview_image=preview_image)
+        return render_template('dashboard.html', doc=doc, update=update, mode=mode, updated=updated, history=history, pagination=pagination, preview_image=preview_image)
 
     def text(name, limit=600):
         value = request.form.get(name, '').strip()
