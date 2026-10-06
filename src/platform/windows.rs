@@ -112,7 +112,35 @@ use installer_shell::{
     shortcut_bytes, validate_install_value,
 };
 
-pub const FLUTTER_RUNNER_WIN32_WINDOW_CLASS: &'static str = "FLUTTER_RUNNER_WIN32_WINDOW"; // main window, install window
+pub const FLUTTER_RUNNER_WIN32_WINDOW_CLASS: &'static str = "ABRITDESK_FLUTTER_RUNNER_WIN32_WINDOW"; // main window, install window
+mod abrit_identity;
+
+pub fn initialize_abrit_identity() {
+    // This must precede any lazy Config/IPC/service initialization, including portable helpers.
+    *config::APP_NAME.write().unwrap() = abrit_identity::APP_NAME.to_owned();
+    let mut settings = config::DEFAULT_SETTINGS.write().unwrap();
+    for (key, value) in [("custom-rendezvous-server", abrit_identity::SERVER), ("relay-server", abrit_identity::SERVER), ("key", abrit_identity::SERVER_KEY)] {
+        settings.entry(key.to_owned()).or_insert_with(|| value.to_owned());
+    }
+}
+
+pub fn abrit_identity_snapshot() -> serde_json::Value {
+    let (_, path, _, exe) = get_install_info();
+    serde_json::json!({
+        "app_name": crate::get_app_name(),
+        "service_name": crate::get_app_name(),
+        "service_display_name": abrit_identity::SERVICE_DISPLAY_NAME,
+        "service_executable": exe,
+        "install_directory": path,
+        "config_file": Config::file(),
+        "ipc": Config::ipc_path(""),
+        "service_ipc": Config::ipc_path("_service"),
+        "uri_prefix": crate::get_uri_prefix(),
+        "window_class": FLUTTER_RUNNER_WIN32_WINDOW_CLASS,
+        "tray_mutex": format!("Local\\{}_tray", crate::get_app_name()),
+        "broker": WIN_TOPMOST_INJECTED_PROCESS_EXE,
+    })
+}
 pub const EXPLORER_EXE: &'static str = "explorer.exe";
 pub const SET_FOREGROUND_WINDOW: &'static str = "SET_FOREGROUND_WINDOW";
 
@@ -1253,8 +1281,8 @@ pub fn portable_service_logon_helper_paths() -> Option<(PathBuf, PathBuf)> {
         .home_dir()
         .join("AppData")
         .join("Local")
-        .join("rustdesk-sciter");
-    let dst = dir.join("rustdesk.exe");
+        .join("AbritDesk");
+    let dst = dir.join("AbritDesk.exe");
     Some((dir, dst))
 }
 
@@ -1297,8 +1325,6 @@ pub fn lock_screen() {
     }
 }
 
-const IS1: &str = "{54E86BC2-6C85-41F3-A9EB-1A94AC9B1F93}_is1";
-
 fn get_subkey(name: &str, wow: bool) -> String {
     let tmp = format!(
         "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{}",
@@ -1314,14 +1340,6 @@ fn get_subkey(name: &str, wow: bool) -> String {
 fn get_valid_subkey() -> String {
     let app_name = crate::get_app_name();
     let subkey = format!("{HKLM_PREFIX}Software\\{app_name}\\InstallState\\{app_name}");
-    if !get_reg_of(&subkey, "InstallLocation").is_empty() {
-        return subkey;
-    }
-    let subkey = get_subkey(IS1, false);
-    if !get_reg_of(&subkey, "InstallLocation").is_empty() {
-        return subkey;
-    }
-    let subkey = get_subkey(IS1, true);
     if !get_reg_of(&subkey, "InstallLocation").is_empty() {
         return subkey;
     }
@@ -1451,6 +1469,10 @@ pub fn check_update_broker_process() -> ResultType<()> {
 
 fn get_install_info_with_subkey(subkey: String) -> (String, String, String, String) {
     let mut path = get_reg_of(&subkey, "InstallLocation");
+    if std::path::Path::new(&path).ancestors().any(|parent| parent.file_name().is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("RustDesk"))) {
+        log::warn!("Ignoring a reserved RustDesk installation directory for AbritDesk");
+        path.clear();
+    }
     if path.is_empty() {
         path = get_default_install_path();
     }
@@ -1620,6 +1642,7 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     for value in [&path, &exe, &cur_exe] {
         validate_install_value(value)?;
     }
+    validate_abrit_service_executable(&exe)?;
     let config_path = Config::file();
     validate_install_value(
         config_path
@@ -1981,8 +2004,8 @@ fn get_public_base_dir() -> PathBuf {
 #[inline]
 pub fn get_custom_client_staging_dir() -> PathBuf {
     get_public_base_dir()
-        .join("RustDesk")
-        .join("RustDeskCustomClientStaging")
+        .join(crate::get_app_name())
+        .join("AbritDeskCustomClientStaging")
 }
 
 /// Removes the custom client staging directory.
@@ -3131,6 +3154,9 @@ pub fn user_accessible_folder() -> ResultType<PathBuf> {
 
 #[inline]
 pub fn uninstall_cert() -> ResultType<()> {
+    if crate::get_app_name() == "AbritDesk" {
+        return Ok(());
+    }
     cert::uninstall_cert()
 }
 
@@ -3329,6 +3355,7 @@ pub fn uninstall_service(show_new_window: bool, _: bool) -> bool {
 }
 
 fn get_install_service_commands(path: &str, exe: &str) -> ResultType<String> {
+    validate_abrit_service_executable(exe)?;
     let app_name = crate::get_app_name();
     let display_name = crate::common::get_display_app_name();
     for value in [path, exe] {
@@ -3977,7 +4004,7 @@ if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{di
 sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{display_name} Service\"
 sc start {app_name}
 ",
-    display_name = crate::common::get_display_app_name(),
+    display_name = crate::get_app_name(),
         app_name = crate::get_app_name())
     }
 }
@@ -4011,7 +4038,7 @@ pub fn try_remove_temp_update_files() {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                 // Match files like rustdesk-*.msi or rustdesk-*.exe
-                if file_name.starts_with("rustdesk-")
+                if file_name.starts_with("abritdesk-")
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
                 {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
@@ -4077,7 +4104,7 @@ pub fn message_box(text: &str) {
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect::<Vec<u16>>();
-    let caption = "RustDesk Output"
+    let caption = "AbritDesk Output"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect::<Vec<u16>>();
@@ -4176,6 +4203,10 @@ impl Drop for WallPaperRemover {
 }
 
 fn get_uninstall_amyuni_idd() -> String {
+    // Signed display drivers are system-wide and may still be used by RustDesk.
+    if crate::get_app_name() == "AbritDesk" {
+        return String::new();
+    }
     match std::env::current_exe() {
         Ok(path) => format!("\"{}\" --uninstall-amyuni-idd", path.to_str().unwrap_or("")),
         Err(e) => {
@@ -4183,6 +4214,13 @@ fn get_uninstall_amyuni_idd() -> String {
             "".to_string()
         }
     }
+}
+
+fn validate_abrit_service_executable(exe: &str) -> ResultType<()> {
+    if !abrit_identity::owns_service_executable(exe) {
+        bail!("AbritDesk service requires AbritDesk.exe outside the RustDesk installation directory");
+    }
+    Ok(())
 }
 
 #[inline]
@@ -4528,7 +4566,7 @@ pub fn send_raw_data_to_printer(printer_name: Option<String>, data: Vec<u8>) -> 
             data.len() as c_ulong,
         );
         if res != 0 {
-            bail!("Failed to send data to the printer, see logs in C:\\Windows\\temp\\test_rustdesk.log for more details.");
+            bail!("Failed to send data to the printer, see logs in C:\\Windows\\temp\\test_abritdesk.log for more details.");
         } else {
             log::info!("Successfully sent data to the printer");
         }

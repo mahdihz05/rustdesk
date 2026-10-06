@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'brand.dart';
 import 'widgets.dart';
 import 'smoke.dart';
+import 'language_toggle.dart';
 
 class AbritDesktopShell extends StatefulWidget {
   final Widget child;
@@ -14,6 +15,7 @@ class AbritDesktopShell extends StatefulWidget {
   final String version;
   final ValueChanged<AbritLayoutMetrics>? onLayout;
   final Widget Function(BuildContext, bool)? navigationFooterBuilder;
+  final ValueChanged<String>? onLanguageChanged;
   const AbritDesktopShell(
       {super.key,
       required this.child,
@@ -25,6 +27,7 @@ class AbritDesktopShell extends StatefulWidget {
       required this.destinations,
       required this.version,
       this.onLayout,
+      this.onLanguageChanged,
       this.navigationFooterBuilder});
   @override
   State<AbritDesktopShell> createState() => _AbritDesktopShellState();
@@ -71,7 +74,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
             builder: (context, selected, _) => Column(children: [
                   Expanded(
                       child: ListView(
-                          padding: EdgeInsets.all(compact ? 10 : 20),
+                          padding: EdgeInsets.all(compact ? 10 : MediaQuery.sizeOf(context).width < 1100 ? 12 : 20),
                           children: [...widget.destinations.map((destination) {
                             final active = selected == destination;
                             final label = _label(context, destination);
@@ -99,7 +102,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                 padding: EdgeInsets.symmetric(
                                                     vertical: 14,
                                                     horizontal:
-                                                        compact ? 0 : 16),
+                                                        compact ? 0 : MediaQuery.sizeOf(context).width < 1100 ? 8 : 16),
                                                 child: Row(
                                                     mainAxisAlignment: compact
                                                         ? MainAxisAlignment
@@ -112,7 +115,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                           color: color),
                                                       if (!compact) ...[
                                                         const SizedBox(
-                                                            width: 18),
+                                                            width: 12),
                                                         Expanded(
                                                             child: Text(label,
                                                                 style: TextStyle(
@@ -128,7 +131,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                           }),
                             if (widget.navigationFooterBuilder != null) ...[
                               const SizedBox(height: 20),
-                              widget.navigationFooterBuilder!(context, compact),
+                              widget.navigationFooterBuilder!(context, compact || MediaQuery.sizeOf(context).height < 700),
                             ],
                           ])),
                   if (MediaQuery.sizeOf(context).height >= 350)
@@ -171,25 +174,26 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                     height: 72,
                     child: Row(textDirection: TextDirection.ltr, children: [
                       Expanded(
-                          child: Row(children: [
+                          child: Row(textDirection: TextDirection.ltr, children: [
                         if (metrics.drawer)
                           IconButton(
                               tooltip: abritText(context, 'Menu', 'منو'),
                               onPressed: () =>
                                   setState(() => _drawerOpen = !_drawerOpen),
                               icon: const Icon(Icons.menu)),
-                        Expanded(
+                        SizedBox(
+                            width: constraints.maxWidth < 400 ? 44 : constraints.maxWidth < 680 ? 105 : 320,
                             child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanStart: (_) => widget.onDrag(),
                                 onDoubleTap: widget.onMaximize,
                                 child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 24),
-                                    child: Row(children: [
-                                      const AbritLogo(size: 40),
-                                      const SizedBox(width: 12),
-                                      if (constraints.maxWidth >= 420)
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: constraints.maxWidth < 400 ? 4 : constraints.maxWidth < 680 ? 12 : 20),
+                                    child: Row(mainAxisSize: MainAxisSize.min, textDirection: TextDirection.ltr, children: [
+                                      AbritLogo(key: const ValueKey('abrit-header-logo'), size: constraints.maxWidth < 400 ? 14 : constraints.maxWidth < 680 ? 32 : 40),
+                                      SizedBox(width: constraints.maxWidth < 400 ? 4 : 12),
+                                      if (constraints.maxWidth >= 680)
                                         Flexible(
                                             child: Column(
                                                 mainAxisAlignment:
@@ -218,6 +222,11 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                           context))),
                                             ])),
                                     ])))),
+                        AbritLanguageToggle(onChanged: widget.onLanguageChanged),
+                        Expanded(child: GestureDetector(behavior: HitTestBehavior.opaque,
+                          onPanStart: (_) => widget.onDrag(), onDoubleTap: widget.onMaximize,
+                          child: const SizedBox.expand())),
+                        SizedBox(width: constraints.maxWidth < 400 ? 4 : 12),
                       ])),
                       Directionality(
                           textDirection: TextDirection.ltr,

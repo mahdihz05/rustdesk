@@ -107,6 +107,10 @@ jobs:
         run: |
           cargo test --manifest-path res/abrit/policy-tests/Cargo.toml
           if ($LASTEXITCODE -ne 0) { throw "Native abritdesk policy tests failed" }
+          cargo test --manifest-path res/abrit/identity-tests/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw "AbritDesk namespace and service ownership tests failed" }
+          python3 res/abrit/test_identity.py
+          if ($LASTEXITCODE -ne 0) { throw "AbritDesk MSI and runner identity tests failed" }
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
@@ -139,11 +143,10 @@ jobs:
         run: |
           python3 .\build.py --portable --flutter --skip-portable-pack
           if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
-          if (-not (Test-Path ".\flutter\build\windows\x64\runner\Release\rustdesk.exe")) {
+          if (-not (Test-Path ".\flutter\build\windows\x64\runner\Release\AbritDesk.exe")) {
             throw "Preview executable was not produced"
           }
           $release = ".\flutter\build\windows\x64\runner\Release"
-          Move-Item "$release\rustdesk.exe" "$release\abritdesk.exe"
           foreach ($file in @('librustdesk.dll', 'flutter_windows.dll', 'data/app.so', 'data/flutter_assets/assets/abrit/logo.png', 'data/flutter_assets/assets/abrit/Vazirmatn.ttf', 'data/flutter_assets/assets/abrit/hero-light.png')) {
             if (-not (Test-Path (Join-Path $release $file))) { throw "Missing preview runtime file: $file" }
           }
@@ -154,7 +157,7 @@ jobs:
 
       - name: Run actual Windows application in both languages and themes
         shell: pwsh
-        run: ./res/abrit/smoke_windows.ps1 -Executable ./flutter/build/windows/x64/runner/Release/abritdesk.exe -Output ./ui-screenshots
+        run: ./res/abrit/test_windows_identity.ps1 -Executable ./flutter/build/windows/x64/runner/Release/AbritDesk.exe -Output ./ui-screenshots
 
       - name: Upload actual application screenshots
         if: always()
@@ -184,7 +187,7 @@ jobs:
           [Download the complete Windows bundle]($env:ARTIFACT_URL)
 
           Extract all files and run **abritdesk.exe**. The executable displays the abritdesk brand.
-          The preview includes the responsive Persian/English UI and keeps RustDesk's window sizing and settings identity.
+          The preview uses an independent AbritDesk service, configuration, registry and IPC namespace.
           This is an unsigned UI preview with software codecs; installers and other platforms are built by the existing workflows.
 
           Commit: $env:GITHUB_SHA

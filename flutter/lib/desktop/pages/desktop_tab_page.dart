@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../abrit/brand.dart';
 import '../../abrit/shell.dart';
+import '../../abrit/runtime.dart';
 import '../../abrit/install_prompt.dart';
 import '../../abrit/smoke.dart';
 import '../../abrit/control_runtime.dart';
@@ -119,6 +120,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 child: ActionIcon(message: 'Settings', icon: IconFont.menu,
                   onTap: DesktopTabPage.onAddSetting, isClose: false)),
             ) : AbritDesktopShell(
+              onLanguageChanged: isOptionFixed(kCommConfKeyLang) ? null : changeAbritLanguage,
               navigationFooterBuilder: (_, compact) => AbritInstallPrompt(compact: compact),
               destination: destination,
               version: version,

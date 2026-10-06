@@ -106,6 +106,9 @@ pub fn send_wol(id: String) {
 
 #[inline]
 fn get_broadcast_port() -> u16 {
+    #[cfg(windows)]
+    return 21219;
+    #[cfg(not(windows))]
     (RENDEZVOUS_PORT + 3) as _
 }
 

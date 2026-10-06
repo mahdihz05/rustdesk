@@ -51,6 +51,9 @@ pub enum GrabState {
 pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Output = ()>;
 
 // the executable name of the portable version
+#[cfg(windows)]
+pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "ABRITDESK_APPNAME";
+#[cfg(not(windows))]
 pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 
 pub const PLATFORM_WINDOWS: &str = "Windows";
@@ -121,6 +124,8 @@ impl Drop for SimpleCallOnReturn {
 }
 
 pub fn global_init() -> bool {
+    #[cfg(windows)]
+    crate::platform::windows::initialize_abrit_identity();
     #[cfg(all(target_os = "linux", feature = "drm"))]
     crate::platform::linux::dispatch_wayland_display_probe();
     #[cfg(target_os = "linux")]
@@ -2433,9 +2438,12 @@ pub fn read_custom_client(config: &str) {
     };
 
     if let Some(app_name) = data.remove("app-name") {
+        #[cfg(not(windows))]
         if let Some(app_name) = app_name.as_str() {
             *config::APP_NAME.write().unwrap() = app_name.to_owned();
         }
+        #[cfg(windows)]
+        let _ = app_name;
     }
 
     let mut map_display_settings = HashMap::new();

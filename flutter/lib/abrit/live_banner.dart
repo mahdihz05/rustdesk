@@ -35,11 +35,7 @@ class AbritLiveBanner extends StatelessWidget {
             'راهکاری امن برای دسترسی از راه دور'));
     final subtitle = localizedControlText(banner['subtitle'], language, '');
     final link = banner['link_url'] as String? ?? '';
-    final height = compact
-        ? 56.0
-        : short
-            ? 96.0
-            : 140.0;
+    final height = context.dependOnInheritedWidgetOfExactType<AbritScope>()?.metrics.bannerHeight ?? (short ? 96.0 : 160.0);
     final fallback = Image.asset('assets/abrit/servers.png', fit: BoxFit.cover);
     return ClipRRect(
         borderRadius: BorderRadius.circular(18),

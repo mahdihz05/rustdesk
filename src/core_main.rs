@@ -35,6 +35,11 @@ pub fn core_main() -> Option<Vec<String>> {
     }
     crate::load_custom_client();
     #[cfg(windows)]
+    if std::env::args().nth(1).as_deref() == Some("--identity-json") {
+        println!("{}", crate::platform::windows::abrit_identity_snapshot());
+        return None;
+    }
+    #[cfg(windows)]
     if !crate::platform::windows::bootstrap() {
         // return None to terminate the process
         return None;

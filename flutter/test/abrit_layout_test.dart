@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +23,7 @@ Widget harness(
         bool dark = false,
         VoidCallback? onInstall,
         VoidCallback? onTransfer,
+        ValueChanged<String>? onLanguageChanged,
         ValueChanged<String>? onCopy,
         VoidCallback? onSecurity}) =>
     MaterialApp(
@@ -42,7 +46,8 @@ Widget harness(
         onSelected: (page) => destination.value = page,
         onDrag: () {},
         onMaximize: () {},
-        version: '1.5.0',
+        onLanguageChanged: onLanguageChanged,
+        version: '1.5.3',
         navigationFooterBuilder: (_, compact) => AbritInstallCard(
             compact: compact, onPressed: onInstall ?? () {}),
         destinations: AbritDestination.values,
@@ -137,8 +142,12 @@ void main() {
     const Size(360, 500),
     const Size(599, 600),
     const Size(600, 600),
+    const Size(655, 600),
+    const Size(656, 600),
     const Size(703, 600),
     const Size(704, 600),
+    const Size(759, 600),
+    const Size(760, 600),
     const Size(800, 600),
     const Size(899, 650),
     const Size(900, 650),
@@ -148,6 +157,98 @@ void main() {
     const Size(1280, 850),
     const Size(1920, 1080)
   ];
+
+  if (Platform.environment['ABRIT_UI_PREVIEW_DIR'] != null) {
+    testWidgets('capture the current Flutter home for review', (tester) async {
+      final destination = ValueNotifier(AbritDestination.home);
+      final controller = TextEditingController();
+      addTearDown(destination.dispose);
+      addTearDown(controller.dispose);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.devicePixelRatio = 1;
+      for (final spec in [('fa', false, const Size(784, 592)), ('fa', false, const Size(1280, 850)),
+          ('en', false, const Size(1280, 850)), ('ar', false, const Size(784, 592)),
+          ('fa', true, const Size(784, 592))]) {
+        tester.view.physicalSize = spec.$3;
+        final key = GlobalKey();
+        await tester.pumpWidget(RepaintBoundary(key: key, child: harness(destination: destination,
+            controller: controller, language: spec.$1, dark: spec.$2, onLanguageChanged: (_) {})));
+        await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          for (final asset in ['wordmark.png', 'servers.png', 'hero-light.png']) {
+            await precacheImage(AssetImage('assets/abrit/$asset'), key.currentContext!);
+          }
+        });
+        await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          final directory = Directory(Platform.environment['ABRIT_UI_PREVIEW_DIR']!);
+          await directory.create(recursive: true);
+          final boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 1);
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          await File('${directory.path}/home-${spec.$1}-${spec.$2 ? "dark" : "light"}-${spec.$3.width.toInt()}.png')
+              .writeAsBytes(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('header brand stays left and language buttons retain form state', (tester) async {
+    final destination = ValueNotifier(AbritDestination.home);
+    final controller = TextEditingController(text: '195799164');
+    final changed = <String>[];
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    for (final size in [const Size(784, 592), const Size(1280, 850)]) {
+      tester.view.physicalSize = size;
+      for (final language in ['fa', 'ar', 'en', 'de', 'fr']) {
+        await tester.pumpWidget(harness(destination: destination, controller: controller,
+            language: language, onLanguageChanged: changed.add));
+        await tester.pumpAndSettle();
+        final logo = tester.getRect(find.byKey(const ValueKey('abrit-header-logo')));
+        final toggle = tester.getRect(find.byKey(const ValueKey('abrit-header-language')));
+        expect(logo.left, lessThan(50));
+        expect(logo.right, lessThan(toggle.left));
+        expect(toggle.right, lessThan(tester.getRect(find.byIcon(Icons.remove)).left));
+        for (final choice in ['fa', 'en', 'ar']) {
+          final buttonLabel = tester.widget<Text>(find.descendant(
+              of: find.byKey(ValueKey('abrit-language-$choice')), matching: find.byType(Text)));
+          expect(buttonLabel.style!.fontFamily, choice == 'en' ? 'NotoSans' : 'Vazirmatn');
+          await tester.tap(find.byKey(ValueKey('abrit-language-$choice')));
+          expect(changed.last, choice);
+          expect(controller.text, '195799164');
+        }
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
+  testWidgets('default window has menu labels and a larger banner at all display scales', (tester) async {
+    final destination = ValueNotifier(AbritDestination.home);
+    final controller = TextEditingController();
+    addTearDown(destination.dispose);
+    addTearDown(controller.dispose);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final scale in [1.0, 1.25, 1.5, 2.0]) {
+      tester.view.devicePixelRatio = scale;
+      tester.view.physicalSize = Size(784 * scale, 592 * scale);
+      await tester.pumpWidget(harness(destination: destination, controller: controller));
+      await tester.pumpAndSettle();
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(tester.getSize(find.byKey(const ValueKey('abrit-home-banner'))).height, greaterThanOrEqualTo(96));
+      expect(tester.getRect(find.byKey(const ValueKey('test-remote-id'))).bottom, lessThan(550));
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('language changes mirror navigation and preserve the form', (tester) async {
     final destination = ValueNotifier(AbritDestination.home);
@@ -317,7 +418,7 @@ void main() {
           final device =
               tester.getRect(find.byKey(const ValueKey('abrit-device')));
           final form = tester.getRect(find.byKey(const ValueKey('abrit-form')));
-          if (size.width >= 704) {
+          if (size.width >= 656) {
             expect(device.top, form.top);
             expect(
                 language == 'fa'

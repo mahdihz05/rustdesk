@@ -26,6 +26,9 @@ pub fn is_sync_clipboard_between_sessions_enabled() -> bool {
 }
 
 // This format is used to store the flag in the clipboard.
+#[cfg(windows)]
+const RUSTDESK_CLIPBOARD_OWNER_FORMAT: &'static str = "dyn.cloud.abrit.abritdesk.owner";
+#[cfg(not(windows))]
 const RUSTDESK_CLIPBOARD_OWNER_FORMAT: &'static str = "dyn.com.rustdesk.owner";
 
 // Add special format for Excel XML Spreadsheet

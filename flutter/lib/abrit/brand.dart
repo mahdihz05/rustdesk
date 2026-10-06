@@ -10,17 +10,18 @@ class AbritLayoutMetrics {
   final double height;
   const AbritLayoutMetrics(this.width, this.height);
   bool get drawer => width < 600;
-  bool get compactNavigation => width < 900;
+  bool get compactNavigation => width < 760;
   bool get sideBySide => width >= 1100;
   bool get short => height < 700;
   bool get compactHome => width < 1100 || short;
-  bool get homeSideBySide => width - navigationWidth - padding * 2 >= 600;
+  bool get homeSideBySide => !drawer && width - navigationWidth - padding * 2 >= 560;
   double get navigationWidth => drawer
       ? 0
       : compactNavigation
           ? 72
-          : 230;
-  double get padding => compactNavigation ? 16 : 24;
+          : width < 1100 ? 168 : 230;
+  double get padding => width < 900 ? 12 : 24;
+  double get bannerHeight => short ? 96 : width < 1100 ? 120 : 160;
   bool get compactContent => width - navigationWidth - padding * 2 < 700;
 }
 

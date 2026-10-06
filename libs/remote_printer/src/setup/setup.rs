@@ -61,6 +61,10 @@ pub fn install_update_printer(app_name: &str) -> ResultType<()> {
     check_add_local_port(&rd_printer_port)?;
 
     let should_install_driver = match get_installed_driver_version(&rd_printer_driver_name)? {
+        Some(_) if app_name == "AbritDesk" => {
+            delete_printer(&rd_printer_name)?;
+            false
+        }
         Some(_version) => {
             delete_printer(&rd_printer_name)?;
             allow_err!(uninstall_driver(&rd_printer_driver_name));
@@ -89,6 +93,8 @@ pub fn uninstall_printer(app_name: &str) {
     let _lock = SETUP_MTX.lock().unwrap();
 
     allow_err!(delete_printer(&rd_printer_name));
-    allow_err!(uninstall_driver(&rd_printer_driver_name));
+    if app_name != "AbritDesk" {
+        allow_err!(uninstall_driver(&rd_printer_driver_name));
+    }
     allow_err!(check_delete_local_port(&rd_printer_port));
 }

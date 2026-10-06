@@ -3,6 +3,16 @@ import 'dart:io';
 import 'smoke.dart';
 import '../consts.dart';
 import '../models/platform_model.dart';
+import '../common.dart';
+import 'package:get/get.dart';
+
+Future<void> changeAbritLanguage(String language) async {
+  if (isOptionFixed(kCommConfKeyLang)) return;
+  await bind.mainSetLocalOption(key: kCommConfKeyLang, value: language);
+  await Get.updateLocale(abritLocale());
+  reloadAllWindows();
+  await bind.mainChangeLanguage(lang: language);
+}
 
 Locale abritLocale() {
   final saved = bind.mainGetLocalOption(key: kCommConfKeyLang);

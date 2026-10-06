@@ -904,6 +904,10 @@ class _GeneralState extends State<_General> {
       }
       final isOptFixed = isOptionFixed(kCommConfKeyLang);
       Future<void> onLanguageChanged(String key) async {
+        if (isDesktop) {
+          await changeAbritLanguage(key);
+          return;
+        }
         await bind.mainSetLocalOption(key: kCommConfKeyLang, value: key);
         if (isDesktop) await Get.updateLocale(abritLocale());
         if (isWeb) reloadCurrentWindow();
@@ -1511,8 +1515,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                       FilteringTextInputFormatter.allow(RegExp(
                           r'^([0-9]|[1-9]\d|[1-9]\d{2}|[1-9]\d{3}|[1-5]\d{4}|6[0-4]\d{3}|65[0-4]\d{2}|655[0-2]\d|6553[0-5])$')),
                     ],
-                    decoration: const InputDecoration(
-                      hintText: '21118',
+                      decoration: InputDecoration(
+                        hintText: isWindows ? '21218' : '21118',
                       contentPadding:
                           EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                     ),

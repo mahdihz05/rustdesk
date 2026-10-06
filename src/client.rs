@@ -429,9 +429,13 @@ impl Client {
         }
         // to-do: remember the port for each peer, so that we can retry easier
         if hbb_common::is_ip_str(peer) {
+            #[cfg(windows)]
+            let direct_port = 21218;
+            #[cfg(not(windows))]
+            let direct_port = RELAY_PORT + 1;
             return Ok((
                 (
-                    connect_tcp_local(check_port(peer, RELAY_PORT + 1), None, CONNECT_TIMEOUT)
+                    connect_tcp_local(check_port(peer, direct_port), None, CONNECT_TIMEOUT)
                         .await?,
                     true,
                     None,

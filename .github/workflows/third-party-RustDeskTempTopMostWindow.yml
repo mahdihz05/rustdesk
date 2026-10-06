@@ -48,6 +48,13 @@ jobs:
       - name: Build the project
         run: |
           cd RustDeskTempTopMostWindow && git checkout ecd8d6a139eee76845ea66423fb739af450fda90
+          $sourcePath = Join-Path (Get-Location) 'WindowInjection/dllmain.cpp'
+          $source = [IO.File]::ReadAllText($sourcePath)
+          foreach ($name in @('RustDeskPrivacyWindowClass', 'RustDeskPrivacyWindow')) {
+            if (-not $source.Contains('"' + $name + '"')) { throw "Missing expected privacy namespace: $name" }
+            $source = $source.Replace('"' + $name + '"', '"' + $name.Replace('RustDesk', 'AbritDesk') + '"')
+          }
+          [IO.File]::WriteAllText($sourcePath, $source, [Text.UTF8Encoding]::new($false))
           msbuild ${{ env.project_path }} -p:Configuration=${{ inputs.configuration }} -p:Platform=${{ inputs.platform }} /p:TargetVersion=${{ inputs.target_version }}
 
       - name: Archive build artifacts

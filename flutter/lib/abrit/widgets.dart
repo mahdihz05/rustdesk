@@ -201,7 +201,7 @@ class AbritBanner extends StatelessWidget {
   Widget build(BuildContext context) => ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
-            constraints: BoxConstraints(minHeight: compact ? 56 : short ? 96 : 140),
+            constraints: BoxConstraints(minHeight: context.dependOnInheritedWidgetOfExactType<AbritScope>()?.metrics.bannerHeight ?? (short ? 96.0 : 160.0)),
             color: const Color(0xFF06162E),
             child: Stack(children: [
               Positioned.fill(
@@ -212,7 +212,7 @@ class AbritBanner extends StatelessWidget {
                   child: Container(
                       color: const Color(0xFF06162E).withOpacity(.6))),
               ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: compact ? 56 : short ? 96 : 140),
+                  constraints: BoxConstraints(minHeight: context.dependOnInheritedWidgetOfExactType<AbritScope>()?.metrics.bannerHeight ?? (short ? 96.0 : 160.0)),
                   child: Padding(
                       padding: EdgeInsets.symmetric(
                           horizontal: compact ? 16 : 24, vertical: compact ? 10 : 12),

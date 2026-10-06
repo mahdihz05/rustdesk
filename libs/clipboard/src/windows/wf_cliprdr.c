@@ -3762,7 +3762,7 @@ BOOL wf_cliprdr_init(wfClipboard *clipboard, CliprdrClientContext *cliprdr)
 		goto error;
 	clipboard->formatDataRespReceived = FALSE;
 
-	if (!(clipboard->data_obj_mutex = CreateMutex(NULL, FALSE, "data_obj_mutex")))
+	if (!(clipboard->data_obj_mutex = CreateMutex(NULL, FALSE, "AbritDesk_data_obj_mutex")))
 		goto error;
 
 	if (!(clipboard->req_fevent = CreateEvent(NULL, TRUE, FALSE, NULL)))

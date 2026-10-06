@@ -23,7 +23,7 @@ namespace RemotePrinter
     // app name, and that arrives at runtime so one dll serves every custom client.
     LPCWCH RD_DRIVER_INF_PATH = L"drivers\\RustDeskPrinterDriver\\RustDeskPrinterDriver.inf";
     LPCWCH RD_PRINTER_DRIVER_NAME = L"RustDesk v4 Printer Driver";
-    LPCWCH RD_DEFAULT_APP_NAME = L"RustDesk";
+    LPCWCH RD_DEFAULT_APP_NAME = L"AbritDesk";
     LPCWCH XCV_MONITOR_LOCAL_PORT = L",XcvMonitor Local Port";
 
     static std::wstring printerNameOf(const std::wstring &appName)
@@ -488,7 +488,7 @@ namespace RemotePrinter
             WcaLog(LOGMSG_STANDARD, "Local port added successfully\n");
         }
 
-        if (getInstalledDriverVersion(RD_PRINTER_DRIVER_NAME) > 0)
+        if (getInstalledDriverVersion(RD_PRINTER_DRIVER_NAME) > 0 && appName != L"AbritDesk")
         {
             deletePrinter(RD_PRINTER_NAME);
             if (FALSE == uninstallDriver(RD_PRINTER_DRIVER_NAME))
@@ -497,7 +497,7 @@ namespace RemotePrinter
             }
         }
 
-        if (FALSE == installDriver(RD_PRINTER_DRIVER_NAME, infFile.c_str()))
+        if ((appName != L"AbritDesk" || getInstalledDriverVersion(RD_PRINTER_DRIVER_NAME) == 0) && FALSE == installDriver(RD_PRINTER_DRIVER_NAME, infFile.c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Driver installation failed, still try to add the printer\n");
         }
@@ -522,7 +522,7 @@ namespace RemotePrinter
 
         deletePrinter(printerName.c_str());
         WcaLog(LOGMSG_STANDARD, "Deleted the printer\n");
-        uninstallDriver(RD_PRINTER_DRIVER_NAME);
+        if (appName != L"AbritDesk") uninstallDriver(RD_PRINTER_DRIVER_NAME);
         WcaLog(LOGMSG_STANDARD, "Uninstalled the printer driver\n");
         checkDeleteLocalPort(printerName.c_str());
         WcaLog(LOGMSG_STANDARD, "Deleted the local port\n");
