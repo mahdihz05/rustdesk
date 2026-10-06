@@ -175,29 +175,31 @@ class ControlTests(unittest.TestCase):
 
     def test_history_pagination_preserves_all_records_and_api(self):
         self.login()
-        self.seed_history(25)
+        self.seed_history(35)
         original = self.document()
-        for page, expected in ((1, range(25, 15, -1)), (2, range(15, 5, -1)), (3, range(5, 0, -1))):
+        for page, expected in ((1, range(35, 25, -1)), (2, range(25, 15, -1)), (3, range(15, 5, -1)), (4, range(5, 0, -1))):
             response = self.get(f'/admin?history_page={page}')
             self.assertEqual(response.status_code, 200)
             html = response.get_data(as_text=True)
             self.assertEqual([int(value) for value in re.findall(r'data-history-id="(\d+)"', html)], list(expected))
-            self.assertIn(f'صفحهٔ {page} از 3', html)
-            self.assertEqual('rel="prev"' in html, page > 1)
-            self.assertEqual('rel="next"' in html, page < 3)
+            self.assertIn(f'صفحهٔ {page} از 4', html)
+            self.assertEqual(re.findall(r'aria-label="صفحهٔ (\d+)"', html), ['1', '2', '3', '4'])
+            self.assertEqual(re.findall(r'aria-label="صفحهٔ (\d+)" aria-current="page"', html), [str(page)])
+            self.assertNotIn('۱۰ مورد قدیمی‌تر', html)
+            self.assertNotIn('۱۰ مورد جدیدتر', html)
             if page == 2:
-                first = html.split('data-history-id="15"', 1)[1].split('data-history-id="14"', 1)[0]
+                first = html.split('data-history-id="25"', 1)[1].split('data-history-id="24"', 1)[0]
                 self.assertIn('آخرین نسخه', first)
                 self.assertNotIn('تنظیمات اولیه', first)
         self.assertEqual(self.document(), original)
         with self.app.control_db() as db:
-            self.assertEqual(db.execute('SELECT COUNT(*) FROM history').fetchone()[0], 25)
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM history').fetchone()[0], 35)
         with self.client.session_transaction(base_url=self.base) as session:
             token = session['csrf']
         self.post('/admin/restore/5', {'csrf': token, 'revision': original['revision']})
         self.assertEqual(self.document()['update']['latest_version'], '1.5.4')
         newest = self.get('/admin').get_data(as_text=True)
-        self.assertIn('data-history-id="26"', newest)
+        self.assertIn('data-history-id="36"', newest)
         self.assertIn('آخرین نسخه', newest)
 
     def test_history_page_boundaries_invalid_input_and_empty_history(self):
@@ -209,7 +211,8 @@ class ControlTests(unittest.TestCase):
             html = response.get_data(as_text=True)
             self.assertEqual(len(re.findall(r'data-history-id="(\d+)"', html)), 10)
             self.assertIn(f'صفحهٔ {expected} از 2', html)
-            self.assertEqual('rel="next"' in html, expected == 1)
+            self.assertEqual(re.findall(r'aria-label="صفحهٔ (\d+)"', html), ['1', '2'])
+            self.assertEqual(re.findall(r'aria-label="صفحهٔ (\d+)" aria-current="page"', html), [str(expected)])
         with self.app.control_db() as db:
             db.execute('DELETE FROM history')
         response = self.get('/admin?history_page=2')
@@ -218,6 +221,7 @@ class ControlTests(unittest.TestCase):
         self.assertIn('نمایش 0 تا 0 از 0 تغییر', html)
         self.assertNotIn('rel="next"', html)
         self.assertNotIn('rel="prev"', html)
+        self.assertIn('aria-label="صفحهٔ 1" aria-current="page"', html)
 
     def test_history_save_without_content_change_and_changed_banner(self):
         self.post('/admin/save', self.form())
