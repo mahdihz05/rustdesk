@@ -126,3 +126,12 @@ Regression surface of this correction:
 | This report | Record failure evidence, minimal patch surface and verification. |
 
 Verification: five Python identity/MSI/version tests pass. The actual two modified port functions were extracted from production source, compiled with Rust 1.75 for both platform branches, and executed to check defaults and an explicit 30000 override. Full application compilation and service acceptance are verified by the new Actions runs rather than claimed from these focused checks.
+
+
+## CI acceptance and NASM correction (2026-10-07)
+
+Run 37588562135 compiled the actual Windows release and passed all 56 UI screenshots (Persian/English, light/dark). Its installer/service checks reached uninstall, but checked the executable immediately after the service disappeared, while the independent elevated uninstall batch was still running. The bounded acceptance wait now requires both the service and executable to disappear; the assertions remain strict and the test never deletes the application itself. Four focused checks of the production wait loop cover service-first, file-first, already-removed and expired-deadline cases. Actual uninstall completion still requires the new hosted-runner acceptance result.
+
+Run 37588587277 also hit DNS failure for www.nasm.us on macOS Intel. The normal prebuilt NASM 2.16.03 path now retries bounded downloads. If it fails, the job compiles the same official release (GitHub upstream commit b9b8718a0878523d5c45f0ab583261a3ab835ae6) after checking archive SHA256 ad268dc35ca37460115c9f9447e97707cdf63c4a4b0c9558d8c46e88cf08d41e. It installs autoconf/automake required by the upstream autogen.sh and asserts the final NASM version. A default-off macos-only dispatch input permits retrying the macOS jobs and publishing to the existing test release without repeating successful Android/iOS/Linux/Windows builds. Normal tag builds retain their previous job selection.
+
+Regression surface: res/abrit/test_windows_identity.ps1 changes only the bounded uninstall wait; .github/workflows/flutter-build.yml changes only NASM acquisition and the default-off macOS retry selection; .github/workflows/flutter-tag.yml forwards the optional macOS selection and explicit existing release tag; this report records the evidence and validation. No production application, service management, config, key, branding or UI code is changed by this correction.

@@ -122,7 +122,9 @@ try {
     Assert-StockUnchanged 'start'
     Invoke-App $installedExe '--uninstall' 'uninstall' | Out-Null
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
-    while ((Get-Service AbritDesk -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $deadline) {
+    # The uninstall command kills its caller before the elevated batch removes files.
+    while (((Get-Service AbritDesk -ErrorAction SilentlyContinue) -or
+            (Test-Path -LiteralPath $installedExe)) -and [DateTime]::UtcNow -lt $deadline) {
         Start-Sleep -Milliseconds 500
     }
     if (Get-Service AbritDesk -ErrorAction SilentlyContinue) { throw 'AbritDesk service remains after uninstall.' }

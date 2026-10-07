@@ -9,6 +9,9 @@ on:
       upload-tag:
         type: string
         default: "nightly"
+      macos-only:
+        type: boolean
+        default: false
 
 # NOTE: F-Droid builder script 'flutter/build_fdroid.sh' reads environment
 # variables from this workflow!
@@ -57,6 +60,7 @@ env:
 
 jobs:
   generate-sbom:
+    if: ${{ !inputs.macos-only }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -86,8 +90,11 @@ jobs:
 
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
+    with:
+      legacy-only: ${{ inputs.macos-only }}
 
   build-RustDeskTempTopMostWindow:
+    if: ${{ !inputs.macos-only }}
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
     strategy:
       fail-fast: false
@@ -109,6 +116,7 @@ jobs:
       target_version: Windows10
 
   build-for-windows-flutter:
+    if: ${{ !inputs.macos-only }}
     name: ${{ matrix.job.target }}
     needs: [build-RustDeskTempTopMostWindow, generate-bridge]
     runs-on: ${{ matrix.job.os }}
@@ -464,6 +472,7 @@ jobs:
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
+    if: ${{ !inputs.macos-only }}
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     runs-on: ${{ matrix.job.os }}
     # Temporarily disable this action due to additional test is needed.
@@ -624,7 +633,7 @@ jobs:
             ./SignOutput/rustdesk-*.exe
 
   build-rustdesk-ios:
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     name: build rustdesk ios ipa
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -837,10 +846,28 @@ jobs:
           # Do NOT use `brew install nasm` which installs NASM 3.x.
           # NASM 3.x is a complete rewrite with incompatible CLI options and removed features.
           # aom and other multimedia libraries require NASM 2.x for x86/x86_64 assembly.
-          wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip
-          unzip nasm-2.16.03-macosx.zip
-          sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          if curl --fail --location --retry 2 --connect-timeout 15 --max-time 90 \
+            https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip \
+            --output nasm-2.16.03-macosx.zip; then
+            unzip nasm-2.16.03-macosx.zip
+            sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          else
+            # Use the same upstream release via GitHub when nasm.us DNS is unavailable.
+            brew install autoconf automake
+            curl --fail --location --retry 2 --connect-timeout 15 --max-time 90 \
+              https://codeload.github.com/netwide-assembler/nasm/tar.gz/b9b8718a0878523d5c45f0ab583261a3ab835ae6 \
+              --output nasm-source.tar.gz
+            echo 'ad268dc35ca37460115c9f9447e97707cdf63c4a4b0c9558d8c46e88cf08d41e  nasm-source.tar.gz' | shasum -a 256 --check
+            tar -xzf nasm-source.tar.gz
+            pushd nasm-b9b8718a0878523d5c45f0ab583261a3ab835ae6
+            sh autogen.sh
+            sh configure
+            make -j"$(sysctl -n hw.logicalcpu)"
+            sudo install -m 755 nasm /usr/local/bin/nasm
+            popd
+          fi
           nasm --version
+          nasm --version | grep -E '^NASM version 2\.16\.03([[:space:]]|$)'
 
       - name: Install flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -987,7 +1014,7 @@ jobs:
       - build-for-windows-flutter
       - build-for-windows-sciter
     runs-on: ubuntu-latest
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1043,6 +1070,7 @@ jobs:
           files: rustdesk-${{ env.VERSION }}-unsigned.tar.gz
 
   build-rustdesk-android:
+    if: ${{ !inputs.macos-only }}
     needs: [generate-bridge]
     name: build rustdesk android apk ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
@@ -1338,7 +1366,7 @@ jobs:
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
     name: build rustdesk android universal apk
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     runs-on: ubuntu-24.04
     env:
       reltype: release
@@ -1521,6 +1549,7 @@ jobs:
             signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
 
   build-rustdesk-linux:
+    if: ${{ !inputs.macos-only }}
     needs: [generate-bridge]
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
@@ -1870,6 +1899,7 @@ jobs:
   # old for it. A separate job rather than a matrix entry of build-rustdesk-linux: appimage and
   # flatpak need that job, and a failure here must not skip them.
   build-rustdesk-linux-drm:
+    if: ${{ !inputs.macos-only }}
     needs: [generate-bridge]
     name: build rustdesk linux drm x86_64
     runs-on: ubuntu-22.04
@@ -2172,7 +2202,7 @@ jobs:
           path: ${{ env.DRM_DEB }}
 
   build-rustdesk-linux-sciter:
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     runs-on: ${{ matrix.job.on }}
     name: build-rustdesk-linux-sciter ${{ matrix.job.target }}
     strategy:
@@ -2417,7 +2447,7 @@ jobs:
     name: Build appimage ${{ matrix.job.target }}
     needs: [build-rustdesk-linux]
     runs-on: ubuntu-22.04
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     strategy:
       fail-fast: false
       matrix:
@@ -2470,7 +2500,7 @@ jobs:
       - build-rustdesk-linux
       - build-rustdesk-linux-sciter
     runs-on: ${{ matrix.job.on }}
-    if: ${{ inputs.upload-artifact }}
+    if: ${{ inputs.upload-artifact && !inputs.macos-only }}
     strategy:
       fail-fast: false
       matrix:
