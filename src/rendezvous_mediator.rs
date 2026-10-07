@@ -1349,7 +1349,9 @@ fn get_direct_port() -> i32 {
         #[cfg(windows)]
         { port = 21218; }
         #[cfg(not(windows))]
-        port = RENDEZVOUS_PORT + 2;
+        {
+            port = RENDEZVOUS_PORT + 2;
+        }
     }
     port
 }

@@ -109,3 +109,20 @@
 فایل‌های جدید: ماژول هویت Windows، widget انتخاب زبان، crate مستقل آزمون هویت و ignore/lock آن، تست‌های Python/MSI، اسکریپت پذیرش Windows و این گزارش. هیچ dependency جدیدی به برنامه اضافه نشده است.
 
 پس از تأیید ظاهر و درخواست بیلد همهٔ پلتفرم‌ها، گردش‌کار `flutter-build.yml` شمارهٔ خروجی‌ها را با نسخهٔ ۱٫۵٫۳ هماهنگ می‌کند و متغیرهای API را از همان آدرس بیلد پیش‌نمایش ویندوز می‌گیرد؛ بدون این متغیرها، بنر زنده و سیاست آپدیت ویندوز در بیلد کامل غیرفعال می‌شدند. خروجی بدون امضای iOS نیز به‌صورت xcarchive در Artifacts ذخیره می‌شود تا بعداً با حساب Apple امضا و آزمایش شود. مسیرهای کامپایل، امضا و انتشار موجود تغییر نکرده‌اند. بیلد کامل با تگ آزمایشی و prerelease اجرا می‌شود و جایگزین Latest پایدار نیست.
+
+
+## CI build correction (2026-10-07)
+
+The 1.5.3 builds stopped because the root Cargo.lock still listed rustdesk 1.5.2. The Windows i686 job, which resolves its lock separately, additionally found unsupported cfg attributes on expressions in the new LAN/direct-port branches. The fix keeps dependency pins, service identity, and port values unchanged.
+
+Regression surface of this correction:
+
+| Existing file/path | Necessary change |
+|---|---|
+| Cargo.lock / every locked Cargo build | Match the root package version to Cargo.toml (1.5.3); no dependency upgrade or removal of --locked. |
+| src/lan.rs / LAN broadcast port | Put each platform result in a cfg block accepted by stable Rust 1.75; Windows remains 21219 and other platforms remain 21119. |
+| src/rendezvous_mediator.rs / direct listener default | Put the non-Windows assignment in a cfg block; Windows remains 21218, other platforms remain 21118, and explicit configured ports still win. |
+| res/abrit/test_identity.py / Windows preview validation | Assert the native, locked, Flutter and workflow versions agree before the expensive build. |
+| This report | Record failure evidence, minimal patch surface and verification. |
+
+Verification: five Python identity/MSI/version tests pass. The actual two modified port functions were extracted from production source, compiled with Rust 1.75 for both platform branches, and executed to check defaults and an explicit 30000 override. Full application compilation and service acceptance are verified by the new Actions runs rather than claimed from these focused checks.

@@ -16,6 +16,17 @@ SPEC.loader.exec_module(MSI)
 
 
 class IdentityTests(unittest.TestCase):
+    def test_native_flutter_and_locked_release_versions_match(self):
+        manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+        version = re.search(r'^version\s*=\s*"([^"]+)"', manifest, re.M).group(1)
+        lock = (ROOT / "Cargo.lock").read_text(encoding="utf-8")
+        locked = re.search(r'name = "rustdesk"\nversion = "([^"]+)"', lock).group(1)
+        self.assertEqual(locked, version, "cargo --locked must accept the release version")
+        flutter = (ROOT / "flutter/pubspec.yaml").read_text(encoding="utf-8")
+        self.assertEqual(re.search(r'^version:\s*([^+\s]+)', flutter, re.M).group(1), version)
+        workflow = (ROOT / ".github/workflows/flutter-build.yml").read_text(encoding="utf-8")
+        self.assertEqual(re.search(r'^  VERSION:\s*"([^"]+)"', workflow, re.M).group(1), version)
+
     def test_msi_upgrade_identity_is_stable_and_different_from_rustdesk(self):
         args = MSI.make_parser().parse_args([])
         self.assertEqual(args.app_name, "AbritDesk")
