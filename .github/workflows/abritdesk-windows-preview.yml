@@ -9,6 +9,11 @@ on:
       - 'docs/**'
       - '.github/workflows/abritdesk-control-tests.yml'
   workflow_dispatch:
+    inputs:
+      identity-only-from-run:
+        description: 'Test an existing Windows x64 artifact without rebuilding (source run ID)'
+        type: string
+        required: false
 
 env:
   RUST_VERSION: "1.75"
@@ -28,11 +33,13 @@ permissions:
 
 jobs:
   generate-bridge:
+    if: ${{ !inputs.identity-only-from-run }}
     uses: ./.github/workflows/bridge.yml
     with:
       legacy-only: true
 
   windows-x64-preview:
+    if: ${{ !inputs.identity-only-from-run }}
     name: Windows x64 preview
     needs: generate-bridge
     runs-on: windows-2022
@@ -192,3 +199,42 @@ jobs:
 
           Commit: $env:GITHUB_SHA
           "@ | Add-Content $env:GITHUB_STEP_SUMMARY
+
+  windows-identity-existing-build:
+    if: ${{ inputs.identity-only-from-run != '' }}
+    name: Test existing Windows release
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout acceptance scripts
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Download existing Windows x64 build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: rustdesk-unsigned-windows-x86_64
+          path: existing-build/
+          run-id: ${{ inputs.identity-only-from-run }}
+          github-token: ${{ github.token }}
+
+      - name: Test portable UI and independent service install and uninstall
+        shell: pwsh
+        run: |
+          ./res/abrit/test_windows_identity.ps1 -Executable existing-build/AbritDesk.exe -Output ui-screenshots
+
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-identity-acceptance
+          path: ui-screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload tested Windows bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-windows-x64-tested
+          path: existing-build/
+          if-no-files-found: error
+          retention-days: 14
