@@ -48,7 +48,7 @@ Widget harness(
         onDrag: () {},
         onMaximize: () {},
         onLanguageChanged: onLanguageChanged,
-        version: '1.5.4',
+        version: '1.0.0',
         navigationFooterBuilder: (_, compact) => AbritInstallCard(
             compact: compact, onPressed: onInstall ?? () {}),
         destinations: AbritDestination.values,
@@ -169,9 +169,9 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       tester.view.devicePixelRatio = 1;
-      for (final spec in [('fa', false, const Size(784, 592)), ('fa', false, const Size(1280, 850)),
-          ('en', false, const Size(1280, 850)), ('ar', false, const Size(784, 592)),
-          ('fa', true, const Size(784, 592))]) {
+      for (final spec in [('fa', false, abritInitialWindowSize), ('en', false, abritInitialWindowSize),
+          ('fa', false, const Size(784, 592)), ('fa', false, const Size(1280, 850)),
+          ('en', false, const Size(1280, 850)), ('fa', true, abritInitialWindowSize)]) {
         tester.view.physicalSize = spec.$3;
         final key = GlobalKey();
         await tester.pumpWidget(RepaintBoundary(key: key, child: harness(destination: destination,
@@ -199,7 +199,7 @@ void main() {
     });
   }
 
-  testWidgets('header brand stays left and language buttons retain form state', (tester) async {
+  testWidgets('brand text stays left and footer language buttons retain form state', (tester) async {
     final destination = ValueNotifier(AbritDestination.home);
     final controller = TextEditingController(text: '195799164');
     final changed = <String>[];
@@ -215,10 +215,17 @@ void main() {
             language: language, onLanguageChanged: changed.add));
         await tester.pumpAndSettle();
         final logo = tester.getRect(find.byKey(const ValueKey('abrit-header-logo')));
-        final toggle = tester.getRect(find.byKey(const ValueKey('abrit-header-language')));
+        final toggle = tester.getRect(find.byKey(const ValueKey('abrit-navigation-language')));
         expect(logo.left, lessThan(50));
-        expect(logo.right, lessThan(toggle.left));
-        expect(toggle.right, lessThan(tester.getRect(find.byIcon(Icons.remove)).left));
+        expect(toggle.top, greaterThan(tester.getRect(find.byKey(const ValueKey('abrit-install-card'))).bottom));
+        final brand = find.text('abritdesk').first;
+        final tagline = find.text(language == 'fa' ? 'دسترسی امن، همیشه در کنار شما' : 'Secure access, always with you');
+        expect(tester.getRect(brand).left, tester.getRect(tagline).left);
+        expect(tester.widget<Text>(brand).textAlign, TextAlign.left);
+        expect(tester.widget<Text>(tagline).textAlign, TextAlign.left);
+        expect(find.byIcon(Icons.contact_page_outlined), findsNothing);
+        expect(find.text('Address book'), findsNothing);
+        expect(find.text('دفترچهٔ آدرس'), findsNothing);
         expect(find.byKey(const ValueKey('abrit-language-ar')), findsNothing);
         for (final choice in ['fa', 'en']) {
           final buttonLabel = tester.widget<Text>(find.descendant(

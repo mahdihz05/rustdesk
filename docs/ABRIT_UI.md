@@ -187,3 +187,144 @@ network API, remote-control protocol, server credentials, signed driver identity
 shared submodule changes are needed. Native install and MSI install tests compare
 stock RustDesk service/config/registry snapshots before and after each operation.
 This is a stock-service sentinel test, not proof of two simultaneous live sessions.
+
+## Pending 1.0.0 visual review (2026-10-07)
+
+User-requested numbering reset: all new packages will report **1.0.0**. Keep this
+version until the user explicitly requests another version. This change does not
+rewrite existing published 1.5.x tags. No new tag, release, push or GitHub Actions
+run has been made for these pending changes.
+
+The sidebar now contains Home, Connect, Devices and Settings. Persian/English
+selection sits at its bottom (vertical in the narrow rail); the main header logo,
+product name and subtitle retain physical left placement/alignment in every locale.
+Existing address-book models and stored data are retained; the removed destination
+is no longer exposed by the desktop sidebar.
+
+The supplied `ABRIT_EXE_Light.ico` is stored as `res/abrit/app-icon-source.ico`.
+Its four Windows resources are byte-for-byte copies, including all supplied frames
+and their opaque white backgrounds. Desktop, Android and iOS application icons
+derive from it. Header artwork and transparent monochrome notification/tray masks
+are preserved.
+
+Verification: 28 Flutter harness tests passed, including the preview capture,
+18 responsive sizes, both themes/directions, form state, footer-language callbacks,
+and default 1160x920 layout at multiple display scales. Five Python native/MSI
+identity/version tests passed. Modified production Dart paths analyze without errors
+or warnings (one existing deprecation info in DesktopTabPage). ICO copies/white
+backgrounds and PowerShell smoke syntax were checked. Native binaries/installers
+have not been rebuilt; these are local renders of the production Abrit widgets
+with sample device/form data, not screenshots of a newly built Windows EXE.
+
+Preview directory: `C:/projects/abritdesk/preview/review-1.0.0/`. Files include
+`home-fa-light-1160.png`, `home-en-light-1160.png`, `home-fa-dark-1160.png`,
+and the smaller `home-fa-light-784.png`.
+
+Publication dependencies: the public client API currently advertises latest version
+1.5.2 (minimum 0.0.0, mandatory false). Coordinate its latest version/download URL
+with the new 1.0.0 release so new users are not offered an older preview as an update.
+The MSI retains its existing downgrade protection and independent UpgradeCode:
+an installed 1.5.x MSI must be uninstalled before installing a 1.0.0 MSI. Do not
+change service/config namespaces or remove user configuration to reset numbering.
+
+Regression-surface minimization: only requested UI, version, icon resources and
+their existing smoke/preview checks changed. Window geometry, native service
+ownership, connection operations and live-banner/update APIs are unchanged.
+
+| Existing file | Necessary changed runtime/resource path |
+|---|---|
+| `.github/workflows/flutter-build.yml` | The existing build and artifact version is fixed to 1.0.0; no workflow dispatch or release is performed. |
+| `Cargo.lock` | Locks both local package versions to 1.0.0 for cargo --locked. |
+| `Cargo.toml` | The native application reports 1.0.0. |
+| `flutter/android/app/src/main/res/mipmap-hdpi/ic_launcher.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-mdpi/ic_launcher.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png` | Android launcher/adaptive icon resource uses the supplied white-background application icon. |
+| `flutter/assets/icon.ico` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `flutter/assets/icon.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `flutter/assets/icon.svg` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png` | iOS application icon resource uses the supplied opaque white-background application icon. |
+| `flutter/lib/abrit/language_toggle.dart` | Two-language control supports vertical layout in the compact navigation rail. |
+| `flutter/lib/abrit/shell.dart` | Hides the address-book destination, moves language selection to the navigation footer, and fixes header text physical left alignment in all locales. |
+| `flutter/lib/abrit/smoke.dart` | Opt-in native UI smoke no longer navigates to the removed sidebar destination. |
+| `flutter/lib/desktop/pages/desktop_tab_page.dart` | Removes the address-book item from the desktop sidebar destinations; existing models/data are retained. |
+| `flutter/macos/Runner/AppIcon.icns` | macOS application icon uses the supplied white-background application icon. |
+| `flutter/pubspec.yaml` | Flutter/mobile app version becomes 1.0.0; Android versionCode remains 72. |
+| `flutter/test/abrit_layout_test.dart` | Verifies footer selection, preserved input, absent address-book navigation and header alignment; captures the requested initial-size previews. |
+| `flutter/windows/runner/resources/app_icon.ico` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `libs/portable/Cargo.toml` | Portable EXE file/product version matches the 1.0.0 application. |
+| `res/128x128.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/128x128@2x.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/32x32.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/64x64.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/abrit/generate_brand_assets.py` | Uses the stored supplied ICO for application resources, preserving its white background and exact Windows frames; header wordmark and monochrome notification masks retain their original path. |
+| `res/abrit/smoke_windows.ps1` | Expected native screenshots drop from 16 to 15 per language/theme after removal of that destination. |
+| `res/icon.ico` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/icon.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/mac-icon.png` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/scalable.svg` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `res/tray-icon.ico` | Desktop, installer, tray or packaged application icon resource uses the supplied white-background application icon. |
+| `docs/ABRIT_UI.md` | Records the requested version hold, visual review, test evidence and every changed existing file/path. |
+
+New file: `res/abrit/app-icon-source.ico` stores the supplied authoritative application icon.
+
+## Approved capsule selector and 1.0.0 build dispatch (2026-10-07)
+
+The user approved the other pending changes and authorized all-platform Actions
+with the revised selector. The selector now uses a rounded capsule with a blue
+selected pill, white selected text and soft blue shadow, matching the supplied
+reference. In the narrower full menu each button is 60 pixels; in the large menu
+each is 78 pixels. The 72-pixel icon rail retains vertical 32-pixel buttons.
+The two available quick languages and existing callback are unchanged.
+
+Preflight found run 37600358283 failed only in Windows x64 native acceptance;
+other enabled platform builds passed. The failing normal-window restore assertion
+expected 1280x850 on a runner whose first fitted window is 992x696 and whose next
+OS-adjusted oversized frame was 1044x788. This was an invalid test-size assumption.
+The opt-in smoke now ends its normal case with a window that fits the display,
+writes actual saved-frame.json, and compares the next normal launch against that
+measured frame. It still requires normal first launch and maximized restoration,
+and still fails if a saved frame is not restored. Production window save/restore
+code and service ownership have not changed. No acceptance gate is bypassed.
+
+28 local Flutter tests (including preview capture) and five Python identity checks
+passed. Production analysis of selector and smoke reports no issues; the PowerShell
+script parses and git diff --check passes. Workflow analysis reports only the
+pre-existing disabled Web job `if: False` expression; enabled platform jobs and
+prior NASM/Android retry fixes are unchanged. The supported desktop/mobile builds
+are dispatched to the new v1.0.0 release, without changing old published tags.
+Actual new Windows installer/service/startup evidence remains pending CI.
+
+Additional regression surface over the preceding pending changes:
+
+| Existing file | Necessary changed path |
+|---|---|
+| `flutter/lib/abrit/language_toggle.dart` | Requested capsule/blue selection/shadow and responsive button sizes. |
+| `flutter/lib/abrit/smoke.dart` | Opt-in CI saves a display-fitting normal frame and records the actual final geometry. |
+| `res/abrit/smoke_windows.ps1` | Validates restored geometry against the preceding measured frame, keeping all checks strict. |
+| `docs/ABRIT_UI.md` | Records approval, diagnosed prior failure, verification and build dispatch. |

@@ -7,6 +7,7 @@ $exe = (Resolve-Path -LiteralPath $Executable).Path
 $outputPath = [IO.Path]::GetFullPath($Output)
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 try {
+    $previousFrame = $null
     foreach ($language in @('fa', 'en')) {
         foreach ($theme in @('light', 'dark')) {
             $casePath = Join-Path $outputPath "$language-$theme"
@@ -28,10 +29,10 @@ try {
                 }
                 if (Test-Path (Join-Path $casePath 'errors.txt')) { throw (Get-Content (Join-Path $casePath 'errors.txt') -Raw) }
                 $images = @(Get-ChildItem $casePath -Filter '*.png')
-                if ($images.Count -ne 16) { throw "Expected 16 actual application screenshots, received $($images.Count)" }
+                if ($images.Count -ne 15) { throw "Expected 15 actual application screenshots, received $($images.Count)" }
                 $startup = Get-Content (Join-Path $casePath 'startup.json') -Raw | ConvertFrom-Json
                 if ($startup.fullscreen) { throw 'Main window started fullscreen.' }
-                $expectMaximized = $language -eq 'en' -and $theme -eq 'dark'
+                $expectMaximized = $null -ne $previousFrame -and $previousFrame.maximized
                 if ($startup.maximized -ne $expectMaximized) { throw 'Initial or restored maximized state is incorrect.' }
                 if ($language -eq 'fa' -and $theme -eq 'light') {
                     if ([Math]::Abs($startup.width - $startup.expectedWidth) -gt 2 -or
@@ -39,9 +40,14 @@ try {
                         throw 'First launch does not use the work-area-fitted 1160x920 default.'
                     }
                 } elseif (-not $expectMaximized) {
-                    if ([Math]::Abs($startup.width - 1280) -gt 2 -or [Math]::Abs($startup.height - 850) -gt 2) {
+                    if ([Math]::Abs($startup.width - $previousFrame.width) -gt 2 -or
+                        [Math]::Abs($startup.height - $previousFrame.height) -gt 2) {
                         throw 'Resized normal window was not restored on relaunch.'
                     }
+                }
+                $previousFrame = Get-Content (Join-Path $casePath 'saved-frame.json') -Raw | ConvertFrom-Json
+                if ($previousFrame.maximized -ne ($language -eq 'en' -and $theme -eq 'light')) {
+                    throw 'Smoke did not persist the intended normal/maximized frame.'
                 }
                 Write-Output "Actual release UI passed: $language/$theme ($($images.Count) screenshots)"
             } finally {

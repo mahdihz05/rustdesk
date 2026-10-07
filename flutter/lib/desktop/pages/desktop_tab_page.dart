@@ -131,8 +131,6 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 AbritDestination.home,
                 if (!bind.isIncomingOnly()) AbritDestination.connection,
                 if (!bind.isIncomingOnly()) AbritDestination.devices,
-                if (!bind.isIncomingOnly() && !bind.isDisableAb() && !bind.isDisableAccount())
-                  AbritDestination.addressBook,
                 if (!bind.isDisableSettings() && DesktopSettingPage.tabKeys.isNotEmpty)
                   AbritDestination.settings,
               ],

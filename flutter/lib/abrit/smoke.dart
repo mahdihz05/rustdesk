@@ -100,7 +100,6 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
       for (final page in [
         AbritDestination.connection,
         AbritDestination.devices,
-        AbritDestination.addressBook,
         AbritDestination.settings,
         AbritDestination.home
       ]) {
@@ -120,11 +119,20 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
       await abritSmokeChangeLanguage?.call(original);
       widget.onSelected(AbritDestination.home);
       await _save('home');
+      await windowManager.setSize(Size(
+          expected.width.clamp(1, 800).toDouble(),
+          expected.height.clamp(1, 600).toDouble()));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
       if (Platform.environment['ABRIT_UI_SMOKE_LANG'] == 'en' &&
           Platform.environment['ABRIT_UI_SMOKE_THEME'] == 'light') {
         await windowManager.maximize();
       }
       await abritSmokeSaveWindowPosition?.call();
+      final finalSize = await windowManager.getSize();
+      await File('$abritSmokeDirectory/saved-frame.json').writeAsString(jsonEncode({
+        'width': finalSize.width, 'height': finalSize.height,
+        'maximized': await windowManager.isMaximized(),
+      }));
       await abritSmokeRestoreLanguage?.call();
       await File('$abritSmokeDirectory/complete.json')
           .writeAsString(jsonEncode({'complete': true}));

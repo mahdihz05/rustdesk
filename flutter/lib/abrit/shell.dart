@@ -75,7 +75,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                   Expanded(
                       child: ListView(
                           padding: EdgeInsets.all(compact ? 10 : MediaQuery.sizeOf(context).width < 1100 ? 12 : 20),
-                          children: [...widget.destinations.map((destination) {
+                          children: [...widget.destinations.where((destination) => destination != AbritDestination.addressBook).map((destination) {
                             final active = selected == destination;
                             final label = _label(context, destination);
                             final color = active
@@ -136,10 +136,15 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                           ])),
                   if (MediaQuery.sizeOf(context).height >= 350)
                     Padding(
-                        padding: EdgeInsets.all(compact ? 10 : 24),
+                        padding: EdgeInsets.all(compact ? 10 : 16),
                         child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
+                              Divider(color: AbritColors.muted(context).withOpacity(.12)),
+                              const SizedBox(height: 12),
+                              AbritLanguageToggle(compact: compact,
+                                onChanged: widget.onLanguageChanged),
+                              const SizedBox(height: 16),
                               if (widget.version.isNotEmpty)
                                 Directionality(
                                     textDirection: TextDirection.ltr,
@@ -196,12 +201,14 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                       if (constraints.maxWidth >= 680)
                                         Flexible(
                                             child: Column(
+                                                textDirection: TextDirection.ltr,
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.center,
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
                                               const Text('abritdesk',
+                                                  textAlign: TextAlign.left,
                                                   textDirection:
                                                       TextDirection.ltr,
                                                   maxLines: 1,
@@ -215,6 +222,7 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                       context,
                                                       'Secure access, always with you',
                                                       'دسترسی امن، همیشه در کنار شما'),
+                                                  textAlign: TextAlign.left,
                                                   maxLines: 1,
                                                   style: TextStyle(
                                                       fontSize: 10,
@@ -222,7 +230,6 @@ class _AbritDesktopShellState extends State<AbritDesktopShell> {
                                                           context))),
                                             ])),
                                     ])))),
-                        AbritLanguageToggle(onChanged: widget.onLanguageChanged),
                         Expanded(child: GestureDetector(behavior: HitTestBehavior.opaque,
                           onPanStart: (_) => widget.onDrag(), onDoubleTap: widget.onMaximize,
                           child: const SizedBox.expand())),

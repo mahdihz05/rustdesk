@@ -2,6 +2,7 @@
 import argparse
 import base64
 import json
+import shutil
 from pathlib import Path
 
 from PIL import Image
@@ -20,7 +21,7 @@ def save_png(image, relative, size, opaque=False):
     output.save(target)
 
 
-def generate(logo=None, monochrome_logo=None):
+def generate(logo=None, monochrome_logo=None, app_icon=None):
     if not logo:
         logo = ROOT / 'res/abrit/logo-source.jpg'
     source = Image.open(logo).convert('RGBA')
@@ -41,12 +42,22 @@ def generate(logo=None, monochrome_logo=None):
     image.paste(mark, ((1024 - mark.width) // 2,
                       (1024 - mark.height) // 2), mark)
     save_png(image, "flutter/assets/abrit/logo.png", 256)
+    tray_image = image
+    app_icon = app_icon or ROOT / 'res/abrit/app-icon-source.ico'
+    if app_icon.exists():
+        image = Image.open(app_icon).convert('RGBA')
     save_png(image, "flutter/assets/icon.png", 256)
     encoded = base64.b64encode((ROOT / "flutter/assets/abrit/logo.png").read_bytes()).decode()
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
            f'<image width="100" height="100" href="data:image/png;base64,{encoded}"/></svg>')
     for relative in ["res/scalable.svg", "res/logo.svg", "flutter/assets/icon.svg", "flutter/assets/abrit/logo.svg"]:
         (ROOT / relative).write_text(svg, encoding="utf-8")
+    if app_icon.exists():
+        icon_encoded = base64.b64encode((ROOT / "flutter/assets/icon.png").read_bytes()).decode()
+        icon_svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">'
+                    f'<image width="256" height="256" href="data:image/png;base64,{icon_encoded}"/></svg>')
+        for relative in ["res/scalable.svg", "flutter/assets/icon.svg"]:
+            (ROOT / relative).write_text(icon_svg, encoding="utf-8")
     header = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 310 80">'
               f'<image x="4" y="8" width="64" height="64" href="data:image/png;base64,{encoded}"/>'
               '<text x="84" y="48" font-family="sans-serif" font-size="27" '
@@ -61,15 +72,18 @@ def generate(logo=None, monochrome_logo=None):
                      "flutter/windows/runner/resources/app_icon.ico"]:
         target = ROOT / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        image.resize((256, 256)).save(target, sizes=[(16, 16), (24, 24),
-            (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+        if app_icon.exists():
+            shutil.copyfile(app_icon, target)
+        else:
+            image.resize((256, 256)).save(target, sizes=[(16, 16), (24, 24),
+                (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     image.resize((1024, 1024)).save(ROOT / "flutter/macos/Runner/AppIcon.icns")
     template = Image.new("RGBA", (64, 64))
     if monochrome_logo:
         alpha = Image.open(monochrome_logo).convert("RGBA").resize((64, 64)).getchannel("A")
         template.paste("white", mask=alpha)
     else:
-        template.paste('white', mask=image.resize((64, 64), Image.Resampling.LANCZOS).getchannel('A'))
+        template.paste('white', mask=tray_image.resize((64, 64), Image.Resampling.LANCZOS).getchannel('A'))
     for name in ["mac-tray-dark-x2.png", "mac-tray-light-x2.png"]:
         template.save(ROOT / "res" / name)
     for density, size in [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96),
@@ -97,7 +111,9 @@ def generate(logo=None, monochrome_logo=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--logo", type=Path)
+    parser.add_argument("--app-icon", type=Path,
+        help="ICO application icon; the supplied white background is preserved.")
     parser.add_argument("--monochrome-logo", type=Path,
         help="Transparent silhouette for tray and notification icons.")
     args = parser.parse_args()
-    generate(args.logo, args.monochrome_logo)
+    generate(args.logo, args.monochrome_logo, args.app_icon)
