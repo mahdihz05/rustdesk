@@ -11,6 +11,10 @@ on:
         description: 'Existing release tag to receive the repaired build assets'
         type: string
         required: false
+      android-universal-from-run:
+        description: 'Retry the universal APK using native libraries from an existing run ID'
+        type: string
+        required: false
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
@@ -26,3 +30,4 @@ jobs:
       upload-artifact: true
       upload-tag: ${{ inputs.release-tag || github.ref_name }}
       macos-only: ${{ inputs.macos-only == true }}
+      android-universal-from-run: ${{ inputs.android-universal-from-run || '' }}
