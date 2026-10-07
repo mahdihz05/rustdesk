@@ -14,6 +14,7 @@ import 'package:flutter_hbb/abrit/widgets.dart';
 import 'package:flutter_hbb/abrit/install_card.dart';
 import 'package:flutter_hbb/abrit/connection_options.dart';
 import 'package:flutter_hbb/abrit/about.dart';
+import 'package:flutter_hbb/abrit/window.dart';
 
 Widget harness(
         {required ValueNotifier<AbritDestination> destination,
@@ -47,7 +48,7 @@ Widget harness(
         onDrag: () {},
         onMaximize: () {},
         onLanguageChanged: onLanguageChanged,
-        version: '1.5.3',
+        version: '1.5.4',
         navigationFooterBuilder: (_, compact) => AbritInstallCard(
             compact: compact, onPressed: onInstall ?? () {}),
         destinations: AbritDestination.values,
@@ -154,6 +155,7 @@ void main() {
     const Size(1024, 768),
     const Size(1099, 700),
     const Size(1100, 700),
+    abritInitialWindowSize,
     const Size(1280, 850),
     const Size(1920, 1080)
   ];
@@ -217,7 +219,8 @@ void main() {
         expect(logo.left, lessThan(50));
         expect(logo.right, lessThan(toggle.left));
         expect(toggle.right, lessThan(tester.getRect(find.byIcon(Icons.remove)).left));
-        for (final choice in ['fa', 'en', 'ar']) {
+        expect(find.byKey(const ValueKey('abrit-language-ar')), findsNothing);
+        for (final choice in ['fa', 'en']) {
           final buttonLabel = tester.widget<Text>(find.descendant(
               of: find.byKey(ValueKey('abrit-language-$choice')), matching: find.byType(Text)));
           expect(buttonLabel.style!.fontFamily, choice == 'en' ? 'NotoSans' : 'Vazirmatn');
@@ -239,13 +242,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     for (final scale in [1.0, 1.25, 1.5, 2.0]) {
       tester.view.devicePixelRatio = scale;
-      tester.view.physicalSize = Size(784 * scale, 592 * scale);
+      tester.view.physicalSize = Size(1160 * scale, 920 * scale);
       await tester.pumpWidget(harness(destination: destination, controller: controller));
       await tester.pumpAndSettle();
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
-      expect(tester.getSize(find.byKey(const ValueKey('abrit-home-banner'))).height, greaterThanOrEqualTo(96));
-      expect(tester.getRect(find.byKey(const ValueKey('test-remote-id'))).bottom, lessThan(550));
+      expect(tester.getSize(find.byKey(const ValueKey('abrit-home-banner'))).height, greaterThanOrEqualTo(160));
+      expect(tester.getRect(find.byKey(const ValueKey('abrit-home-banner'))).bottom, lessThan(920));
+      expect(tester.getRect(find.byKey(const ValueKey('test-remote-id'))).bottom, lessThan(700));
       expect(tester.takeException(), isNull);
     }
   });

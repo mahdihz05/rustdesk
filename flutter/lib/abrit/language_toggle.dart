@@ -19,7 +19,7 @@ class AbritLanguageToggle extends StatelessWidget {
           border: Border.all(color: AbritColors.muted(context).withOpacity(.18)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          for (final option in const [('ar', 'ع', 'العربية'), ('fa', 'فا', 'فارسی'), ('en', 'EN', 'English')])
+          for (final option in const [('fa', 'فا', 'فارسی'), ('en', 'EN', 'English')])
             Tooltip(
               message: option.$3,
               child: Semantics(

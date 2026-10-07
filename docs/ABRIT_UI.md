@@ -145,3 +145,45 @@ python res/abrit/check_ui.py --flutter-sdk C:/Users/m.hosseinzadeh/.cache/abritd
 سطح تغییر این اصلاح فقط ظاهر خانه است: `abrit/brand.dart` معیار چیدمان خانه را از معیار فهرست‌ها جدا نگه می‌دارد؛ `abrit/home.dart` محل کارت‌ها و فاصله‌ها را تنظیم می‌کند؛ `abrit/widgets.dart`، `abrit/device_card.dart` و `abrit/connection_options.dart` اندازه‌های جمع‌وجور را ارائه می‌کنند؛ `desktop/pages/connection_page.dart` فقط همین اندازه‌ها را به فرم موجود می‌دهد. تست‌های `abrit_layout_test.dart` معیار دیده‌شدن کنترل‌های اتصال را پوشش می‌دهند. مسیر incoming-only، تنظیمات، صفحات فهرست، backend و تعریف اندازهٔ شروع و بازیابی پنجره در این اصلاح تغییر نکرده‌اند.
 
 نتیجهٔ نهایی این اصلاح: ۱۴ تست ویجت پاس شد؛ تحلیل مسیرهای تغییرکرده فقط deprecation قبلی ConnectionPage را گزارش داد و خطایی نداشت. اجرای واقعی ویندوز در چهار حالت فارسی/انگلیسی و روشن/تیره، با ۵۶ تصویر بدون خطای UI تمام شد. عکس‌های اندازهٔ ۸۰۰×۶۰۰ بازبینی شدند و ورودی مقصد، اتصال، شناسه، رمز، بنر و نصب هم‌زمان در پنجره دیده می‌شوند. تصاویر جدید در پوشهٔ `C:/projects/abritdesk/preview` با پیشوند `compact-home-` آمادهٔ بررسی‌اند؛ اکشن جدید تا بازخورد کاربر اجرا نمی‌شود.
+
+
+## Windows 1.5.4: initial window and package branding (2026-10-07)
+
+The latest requested reference supersedes the original 800x600 first-launch size.
+The Windows main window now starts normally at 1160x920 logical pixels, centered,
+clamped to its monitor's work area with 16 logical pixels of space per edge.
+The previous preview's main-window frame is reset once using an AbritDesk-only
+layout marker; subsequent launches restore user-selected geometry/maximized state.
+Incoming-only, remote session, installer and non-Windows window paths retain their
+existing sizing behavior. Header quick language choices are Persian and English;
+other languages remain accessible through Settings.
+
+Local verification: 27 Flutter tests passed in the isolated UI harness using the
+production Abrit widgets (18 responsive sizes, light/dark, RTL/LTR, DPI 100/125/150/200%,
+resize/input preservation and startup work-area arithmetic); two Rust ownership
+tests and five Python native/MSI namespace checks passed. Native Windows startup,
+restore, install/service/uninstall and actual installer metadata acceptance runs
+on disposable GitHub-hosted Windows runners before publishing the x64 packages.
+
+Regression surface (modified existing files and paths):
+
+| File | Necessary changed path |
+|---|---|
+| `flutter/lib/main.dart` | One Windows main-window startup hook before the existing restore path. |
+| `flutter/lib/abrit/runtime.dart` | Windows-only, once-per-layout initialization and opt-in smoke persistence; retains existing restoration afterwards. |
+| `flutter/lib/abrit/language_toggle.dart` | Removes Arabic from the header quick choices only. |
+| `flutter/lib/abrit/smoke.dart`, `res/abrit/smoke_windows.ps1` | Opt-in CI probe captures startup geometry and checks first normal launch, resized relaunch and maximized relaunch. |
+| `libs/portable/Cargo.toml` | Corrects user-visible EXE resource metadata and packer version without renaming the technical crate/target. |
+| `res/msi/preprocess.py` | Default installer manufacturer and support links become Abrit; service name, install directory and UpgradeCode logic retain their independent identities. |
+| `Cargo.toml`, `Cargo.lock`, `flutter/pubspec.yaml` | Synchronizes release/packer/Flutter versions to 1.5.4 and Android build number 72 so the new package is distinguishable. |
+| `.github/workflows/flutter-build.yml` | Windows release asset filenames use abritdesk; adds x64 UI, native and MSI install/service/uninstall acceptance before release. |
+| `.github/workflows/abritdesk-windows-preview.yml` | Executes the new work-area sizing tests in the existing preview validation step. |
+| `flutter/test/abrit_layout_test.dart`, `res/abrit/test_identity.py` | Asserts the two-language header, full default layout and matching packer metadata version. |
+| `docs/ABRIT_UI.md` | Records this superseding request and the precise changed runtime paths. |
+
+New `flutter/lib/abrit/window.dart` keeps window-size policy inside the Abrit UI;
+`flutter/test/abrit_window_test.dart` checks work-area/DPI sizing. No service ownership,
+network API, remote-control protocol, server credentials, signed driver identity or
+shared submodule changes are needed. Native install and MSI install tests compare
+stock RustDesk service/config/registry snapshots before and after each operation.
+This is a stock-service sentinel test, not proof of two simultaneous live sessions.

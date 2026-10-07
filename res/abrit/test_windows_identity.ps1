@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Executable,
-    [Parameter(Mandatory=$true)][string]$Output
+    [Parameter(Mandatory=$true)][string]$Output,
+    [string]$Installer,
+    [string]$Portable
 )
 $ErrorActionPreference = 'Stop'
 # Installation tests must never run against a developer's existing installation.
@@ -68,7 +70,7 @@ function Assert-StockUnchanged([string]$Stage) {
     }
 }
 
-function Assert-InstalledService {
+function Assert-InstalledService([switch]$Msi) {
     $service = Get-CimInstance Win32_Service -Filter "Name='AbritDesk'"
     if (-not $service -or $service.DisplayName -cne 'AbritDesk Service' -or
         $service.PathName -ine ('"' + $installedExe + '" --service') -or
@@ -76,15 +78,40 @@ function Assert-InstalledService {
         throw 'AbritDesk SCM identity or executable association is incorrect.'
     }
     if (-not (Test-Path -LiteralPath $installedExe)) { throw 'AbritDesk.exe was not installed.' }
-    if ((Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AbritDesk').InstallLocation.TrimEnd('\') -ine $installPath) {
+    if (-not $Msi -and (Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AbritDesk').InstallLocation.TrimEnd('\') -ine $installPath) {
         throw 'AbritDesk uninstall registration points to the wrong installation.'
     }
     $protocol = (Get-Item 'Registry::HKEY_CLASSES_ROOT\abritdesk\shell\open\command').GetValue('')
     if ($protocol -notlike "*$installedExe*") { throw 'AbritDesk URI registration points to the wrong executable.' }
 }
 
+function Invoke-Msi([string]$Arguments, [string]$Label) {
+    $log = Join-Path $outputPath "$Label.log"
+    $process = Start-Process msiexec.exe -ArgumentList "$Arguments /qn /norestart /l*v `"$log`"" -WindowStyle Hidden -PassThru
+    if (-not $process.WaitForExit(120000)) { throw "MSI operation timed out: $Label" }
+    if ($process.ExitCode -notin @(0, 3010)) { throw "MSI operation failed: $Label ($($process.ExitCode)); see $log" }
+}
+
+function Get-MsiProperty($Database, [string]$Name) {
+    $view = $Database.OpenView("SELECT Value FROM Property WHERE Property='$Name'")
+    $view.Execute()
+    $record = $view.Fetch()
+    if (-not $record) { throw "Missing MSI property: $Name" }
+    $value = $record.StringData(1)
+    $view.Close()
+    return $value
+}
+
 $sentinelCreated = $false
 try {
+    if ($Portable) {
+        $resource = (Get-Item -LiteralPath $Portable).VersionInfo
+        if ($resource.ProductName -cne 'abritdesk' -or
+            $resource.FileDescription -cne 'abritdesk Remote Desktop' -or
+            $resource.OriginalFilename -cne 'AbritDesk.exe' -or $resource.CompanyName -cne 'Abrit') {
+            throw 'Portable EXE metadata still uses an incorrect brand.'
+        }
+    }
     # A stopped stock-named sentinel catches the original rename/reconfigure/delete bug.
     # It is not a real RustDesk binary and does not prove two active remote sessions.
     if (-not (Get-Service RustDesk -ErrorAction SilentlyContinue)) {
@@ -130,6 +157,31 @@ try {
     if (Get-Service AbritDesk -ErrorAction SilentlyContinue) { throw 'AbritDesk service remains after uninstall.' }
     if (Test-Path -LiteralPath $installedExe) { throw 'AbritDesk executable remains after uninstall.' }
     Assert-StockUnchanged 'uninstall'
+    if ($Installer) {
+        $msiPath = (Resolve-Path -LiteralPath $Installer).Path
+        $windowsInstaller = New-Object -ComObject WindowsInstaller.Installer
+        $database = $windowsInstaller.OpenDatabase($msiPath, 0)
+        if ((Get-MsiProperty $database 'ProductName') -cne 'abritdesk' -or
+            (Get-MsiProperty $database 'Manufacturer') -cne 'Abrit') {
+            throw 'MSI product name or manufacturer is incorrect.'
+        }
+        $productCode = Get-MsiProperty $database 'ProductCode'
+        $database = $null
+        Invoke-Msi "/i `"$msiPath`" PRINTER=0 LAUNCH_TRAY_APP=0" 'msi-install'
+        Assert-InstalledService -Msi
+        (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        Assert-StockUnchanged 'msi-install'
+        Stop-Service AbritDesk
+        (Get-Service AbritDesk).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
+        Assert-StockUnchanged 'msi-stop'
+        Start-Service AbritDesk
+        (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        Assert-StockUnchanged 'msi-start'
+        Invoke-Msi "/x $productCode" 'msi-uninstall'
+        if (Get-Service AbritDesk -ErrorAction SilentlyContinue) { throw 'MSI uninstall left the AbritDesk service.' }
+        if (Test-Path -LiteralPath $installedExe) { throw 'MSI uninstall left the AbritDesk executable.' }
+        Assert-StockUnchanged 'msi-uninstall'
+    }
     'PASS: native identity, portable UI, install, service stop/start and uninstall leave RustDesk unchanged.' |
         Set-Content (Join-Path $outputPath 'identity-acceptance.txt')
 } finally {

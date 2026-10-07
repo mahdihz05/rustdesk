@@ -28,7 +28,21 @@ try {
                 }
                 if (Test-Path (Join-Path $casePath 'errors.txt')) { throw (Get-Content (Join-Path $casePath 'errors.txt') -Raw) }
                 $images = @(Get-ChildItem $casePath -Filter '*.png')
-                if ($images.Count -ne 14) { throw "Expected 14 actual application screenshots, received $($images.Count)" }
+                if ($images.Count -ne 16) { throw "Expected 16 actual application screenshots, received $($images.Count)" }
+                $startup = Get-Content (Join-Path $casePath 'startup.json') -Raw | ConvertFrom-Json
+                if ($startup.fullscreen) { throw 'Main window started fullscreen.' }
+                $expectMaximized = $language -eq 'en' -and $theme -eq 'dark'
+                if ($startup.maximized -ne $expectMaximized) { throw 'Initial or restored maximized state is incorrect.' }
+                if ($language -eq 'fa' -and $theme -eq 'light') {
+                    if ([Math]::Abs($startup.width - $startup.expectedWidth) -gt 2 -or
+                        [Math]::Abs($startup.height - $startup.expectedHeight) -gt 2) {
+                        throw 'First launch does not use the work-area-fitted 1160x920 default.'
+                    }
+                } elseif (-not $expectMaximized) {
+                    if ([Math]::Abs($startup.width - 1280) -gt 2 -or [Math]::Abs($startup.height - 850) -gt 2) {
+                        throw 'Resized normal window was not restored on relaunch.'
+                    }
+                }
                 Write-Output "Actual release UI passed: $language/$theme ($($images.Count) screenshots)"
             } finally {
                 if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }

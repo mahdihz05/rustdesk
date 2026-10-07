@@ -7,11 +7,14 @@ import 'package:flutter/rendering.dart';
 import 'package:window_manager/window_manager.dart';
 import 'brand.dart';
 import 'control.dart';
+import 'window.dart';
+import 'package:window_size/window_size.dart' as window_size;
 
 String? get abritSmokeDirectory =>
     !kIsWeb && Platform.isWindows ? Platform.environment['ABRIT_UI_SMOKE_DIR'] : null;
 
 Future<void> Function()? abritSmokeRestoreLanguage;
+Future<void> Function()? abritSmokeSaveWindowPosition;
 final abritSmokeActions = <String, VoidCallback>{};
 Future<void> Function(String)? abritSmokeChangeLanguage;
 
@@ -70,8 +73,20 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
           AbritControlScope.maybeOf(context)?.state.checking == true; i++) {
         await Future<void>.delayed(const Duration(seconds: 1));
       }
+      final screen = (await window_size.getWindowInfo()).screen;
+      final expected = screen == null ? abritInitialWindowSize
+          : abritWindowSizeForWorkArea(screen.visibleFrame.size, screen.scaleFactor);
+      final initial = await windowManager.getSize();
+      await File('$abritSmokeDirectory/startup.json').writeAsString(jsonEncode({
+        'width': initial.width, 'height': initial.height,
+        'expectedWidth': expected.width, 'expectedHeight': expected.height,
+        'maximized': await windowManager.isMaximized(),
+        'fullscreen': await windowManager.isFullScreen(),
+      }));
+      await _save('home-startup');
       await windowManager.unmaximize();
       for (final size in [
+        abritInitialWindowSize,
         const Size(800, 600),
         const Size(1280, 850),
         const Size(1024, 768),
@@ -105,6 +120,11 @@ class _AbritSmokeCaptureState extends State<AbritSmokeCapture> {
       await abritSmokeChangeLanguage?.call(original);
       widget.onSelected(AbritDestination.home);
       await _save('home');
+      if (Platform.environment['ABRIT_UI_SMOKE_LANG'] == 'en' &&
+          Platform.environment['ABRIT_UI_SMOKE_THEME'] == 'light') {
+        await windowManager.maximize();
+      }
+      await abritSmokeSaveWindowPosition?.call();
       await abritSmokeRestoreLanguage?.call();
       await File('$abritSmokeDirectory/complete.json')
           .writeAsString(jsonEncode({'complete': true}));

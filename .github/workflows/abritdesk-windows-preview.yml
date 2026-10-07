@@ -93,7 +93,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Flutter dependency resolution failed" }
           flutter analyze --no-fatal-infos --no-fatal-warnings lib/abrit lib/desktop/pages/connection_page.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/desktop_tab_page.dart lib/desktop/pages/desktop_setting_page.dart lib/desktop/widgets/tabbar_widget.dart lib/common/widgets/peer_card.dart lib/common/widgets/peer_tab_page.dart lib/common/widgets/address_book.dart lib/common/widgets/my_group.dart test/abrit_layout_test.dart
           if ($LASTEXITCODE -ne 0) { throw "Abrit Dart analysis failed" }
-          flutter test test/abrit_layout_test.dart --reporter expanded
+          flutter test test/abrit_window_test.dart test/abrit_layout_test.dart --reporter expanded
           if ($LASTEXITCODE -ne 0) { throw "Abrit responsive layout tests failed" }
           flutter test test/abrit_control_test.dart --reporter expanded
           if ($LASTEXITCODE -ne 0) { throw "Abrit live banner and update policy tests failed" }

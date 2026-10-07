@@ -22,6 +22,10 @@ class IdentityTests(unittest.TestCase):
         lock = (ROOT / "Cargo.lock").read_text(encoding="utf-8")
         locked = re.search(r'name = "rustdesk"\nversion = "([^"]+)"', lock).group(1)
         self.assertEqual(locked, version, "cargo --locked must accept the release version")
+        portable = (ROOT / "libs/portable/Cargo.toml").read_text(encoding="utf-8")
+        portable_version = re.search(r'^version\s*=\s*"([^"]+)"', portable, re.M).group(1)
+        self.assertEqual(portable_version, version)
+        self.assertEqual(re.search(r'name = "rustdesk-portable-packer"\nversion = "([^"]+)"', lock).group(1), version)
         flutter = (ROOT / "flutter/pubspec.yaml").read_text(encoding="utf-8")
         self.assertEqual(re.search(r'^version:\s*([^+\s]+)', flutter, re.M).group(1), version)
         workflow = (ROOT / ".github/workflows/flutter-build.yml").read_text(encoding="utf-8")
@@ -30,6 +34,8 @@ class IdentityTests(unittest.TestCase):
     def test_msi_upgrade_identity_is_stable_and_different_from_rustdesk(self):
         args = MSI.make_parser().parse_args([])
         self.assertEqual(args.app_name, "AbritDesk")
+        self.assertEqual(args.display_name, "abritdesk")
+        self.assertEqual(args.manufacturer, "Abrit")
         identities = []
         for name in ["AbritDesk", "AbritDesk", "RustDesk"]:
             with tempfile.TemporaryDirectory() as folder:
