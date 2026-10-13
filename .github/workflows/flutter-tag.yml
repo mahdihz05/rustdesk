@@ -3,12 +3,16 @@ name: Flutter Tag Build
 on:
   workflow_dispatch:
     inputs:
+      windows-x64-only:
+        description: 'Build only Windows x64 and its required helpers'
+        type: boolean
+        default: false
       macos-only:
         description: 'Retry macOS builds without rebuilding the other platforms'
         type: boolean
         default: false
       release-tag:
-        description: 'Existing release tag to receive the repaired build assets'
+        description: 'Release tag to receive build assets (created as a prerelease if missing)'
         type: string
         required: false
       android-universal-from-run:
@@ -30,4 +34,5 @@ jobs:
       upload-artifact: true
       upload-tag: ${{ inputs.release-tag || github.ref_name }}
       macos-only: ${{ inputs.macos-only == true }}
+      windows-x64-only: ${{ inputs.windows-x64-only == true }}
       android-universal-from-run: ${{ inputs.android-universal-from-run || '' }}

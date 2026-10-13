@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)][string]$Executable,
     [Parameter(Mandatory=$true)][string]$Output,
     [string]$Installer,
-    [string]$Portable
+    [string]$Portable,
+    [switch]$LiveConnection
 )
 $ErrorActionPreference = 'Stop'
 # Installation tests must never run against a developer's existing installation.
@@ -94,12 +95,24 @@ function Invoke-Msi([string]$Arguments, [string]$Label) {
 
 function Get-MsiProperty($Database, [string]$Name) {
     $view = $Database.OpenView("SELECT Value FROM Property WHERE Property='$Name'")
-    $view.Execute()
+    $null = $view.Execute()
     $record = $view.Fetch()
     if (-not $record) { throw "Missing MSI property: $Name" }
     $value = $record.StringData(1)
-    $view.Close()
+    $null = $view.Close()
     return $value
+}
+
+function Assert-LiveConnection([string]$Path, [string]$Stage, [switch]$Standalone, [string]$Baseline) {
+    $parameters = @{
+        Executable = $Path
+        Output = (Join-Path $outputPath $Stage)
+        ExpectedDomain = 'serverdesk.abrit.cloud'
+        ExpectedKey = 'XDQrtTIvt+ISB6Zp8iqpjNpwmjRmkfpLHilOsBmrZHM='
+        StartServer = $Standalone
+    }
+    if ($Baseline) { $parameters.Phase = 'Restart'; $parameters.Baseline = $Baseline }
+    & "$PSScriptRoot/test_connection_windows.ps1" @parameters
 }
 
 $sentinelCreated = $false
@@ -134,18 +147,26 @@ try {
         $identity.config_file -notlike "$env:APPDATA\AbritDesk\config\AbritDesk.toml") {
         throw 'The compiled native identity is not independent from RustDesk.'
     }
+    if ($LiveConnection) {
+        Assert-LiveConnection $exe 'portable-registration' -Standalone
+        Assert-LiveConnection $exe 'portable-restart' -Standalone -Baseline (Join-Path $outputPath 'portable-registration/Registration.json')
+    }
     & "$PSScriptRoot/smoke_windows.ps1" -Executable $exe -Output $outputPath
     Assert-StockUnchanged 'portable'
     Invoke-App $exe '--silent-install printer=0' 'install' | Out-Null
     Assert-InstalledService
     $service = Get-Service AbritDesk
     $service.WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+    if ($LiveConnection) { Assert-LiveConnection $installedExe 'installed-registration' }
     Assert-StockUnchanged 'install'
     Stop-Service AbritDesk
     (Get-Service AbritDesk).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
     Assert-StockUnchanged 'stop'
     Start-Service AbritDesk
     (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+    if ($LiveConnection) {
+        Assert-LiveConnection $installedExe 'installed-restart' -Baseline (Join-Path $outputPath 'installed-registration/Registration.json')
+    }
     Assert-StockUnchanged 'start'
     Invoke-App $installedExe '--uninstall' 'uninstall' | Out-Null
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -161,21 +182,28 @@ try {
         $msiPath = (Resolve-Path -LiteralPath $Installer).Path
         $windowsInstaller = New-Object -ComObject WindowsInstaller.Installer
         $database = $windowsInstaller.OpenDatabase($msiPath, 0)
-        if ((Get-MsiProperty $database 'ProductName') -cne 'abritdesk' -or
-            (Get-MsiProperty $database 'Manufacturer') -cne 'Abrit') {
-            throw 'MSI product name or manufacturer is incorrect.'
+        $productName = Get-MsiProperty $database 'ProductName'
+        $manufacturer = Get-MsiProperty $database 'Manufacturer'
+        "MSI ProductName='$productName'; Manufacturer='$manufacturer'" |
+            Tee-Object -FilePath (Join-Path $outputPath 'msi-properties.txt') | Write-Host
+        if ($productName -cne 'abritdesk' -or $manufacturer -cne 'Abrit') {
+            throw "MSI product name or manufacturer is incorrect: ProductName='$productName'; Manufacturer='$manufacturer'."
         }
         $productCode = Get-MsiProperty $database 'ProductCode'
         $database = $null
         Invoke-Msi "/i `"$msiPath`" PRINTER=0 LAUNCH_TRAY_APP=0" 'msi-install'
         Assert-InstalledService -Msi
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        if ($LiveConnection) { Assert-LiveConnection $installedExe 'msi-registration' }
         Assert-StockUnchanged 'msi-install'
         Stop-Service AbritDesk
         (Get-Service AbritDesk).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
         Assert-StockUnchanged 'msi-stop'
         Start-Service AbritDesk
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        if ($LiveConnection) {
+            Assert-LiveConnection $installedExe 'msi-restart' -Baseline (Join-Path $outputPath 'msi-registration/Registration.json')
+        }
         Assert-StockUnchanged 'msi-start'
         Invoke-Msi "/x $productCode" 'msi-uninstall'
         if (Get-Service AbritDesk -ErrorAction SilentlyContinue) { throw 'MSI uninstall left the AbritDesk service.' }

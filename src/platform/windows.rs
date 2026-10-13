@@ -141,6 +141,74 @@ pub fn abrit_identity_snapshot() -> serde_json::Value {
         "broker": WIN_TOPMOST_INJECTED_PROCESS_EXE,
     })
 }
+
+// Standalone CLI entry point, called before bootstrap and outside any Tokio runtime.
+#[tokio::main(flavor = "current_thread")]
+pub async fn abrit_connection_status_json() -> serde_json::Value {
+    use crate::ipc::{connect, Data};
+
+    let query = async {
+        let mut connection = connect(1_000, "")
+            .await
+            .map_err(|_| "ipc_connect_failed")?;
+        connection
+            .send(&Data::OnlineStatus(None))
+            .await
+            .map_err(|_| "online_status_send_failed")?;
+        let (latency, key_confirmed) = match connection.next_timeout(1_000).await {
+            Ok(Some(Data::OnlineStatus(Some(status)))) => status,
+            _ => return Err("online_status_reply_failed"),
+        };
+        connection
+            .send(&Data::Config(("id".to_owned(), None)))
+            .await
+            .map_err(|_| "id_send_failed")?;
+        let id = match connection.next_timeout(1_000).await {
+            Ok(Some(Data::Config((name, Some(id))))) if name == "id" => id,
+            _ => return Err("id_reply_failed"),
+        };
+        connection
+            .send(&Data::Options(None))
+            .await
+            .map_err(|_| "options_send_failed")?;
+        let options = match connection.next_timeout(1_000).await {
+            Ok(Some(Data::Options(Some(options)))) => options,
+            _ => return Err("options_reply_failed"),
+        };
+        // Only allowlisted, non-secret options leave the listener's reply.
+        let server = options
+            .get("custom-rendezvous-server")
+            .ok_or("server_option_missing")?;
+        let relay = options.get("relay-server").ok_or("relay_option_missing")?;
+        let key = options.get("key").ok_or("key_option_missing")?;
+        Ok(serde_json::json!({
+            "ipc_ok": true,
+            "latency": latency,
+            "key_confirmed": key_confirmed,
+            "id": id,
+            "server": server,
+            "relay": relay,
+            "key": key,
+            "error": null,
+        }))
+    };
+    let error = match tokio::time::timeout(std::time::Duration::from_secs(5), query).await {
+        Ok(Ok(snapshot)) => return snapshot,
+        Ok(Err(error)) => error,
+        Err(_) => "ipc_query_timeout",
+    };
+    serde_json::json!({
+        "ipc_ok": false,
+        "latency": null,
+        "key_confirmed": null,
+        "id": null,
+        "server": null,
+        "relay": null,
+        "key": null,
+        "error": error,
+    })
+}
+
 pub const EXPLORER_EXE: &'static str = "explorer.exe";
 pub const SET_FOREGROUND_WINDOW: &'static str = "SET_FOREGROUND_WINDOW";
 
