@@ -9,7 +9,7 @@ function Assert-E2ERunner {
 }
 
 function Write-E2EJson($Value, [string]$Path) {
-    $Value | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Path -Encoding UTF8
+    ConvertTo-Json -InputObject $Value -Depth 8 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
 function Wait-E2EArtifact([string]$Name, [string]$Destination) {

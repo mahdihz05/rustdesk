@@ -193,11 +193,16 @@ try {
         # A new peer file on this disposable sender only; server/key defaults stay untouched.
         $peers = Join-Path $env:APPDATA 'AbritDesk/config/peers'
         New-Item -ItemType Directory -Path $peers -Force | Out-Null
-        $peerFile = Join-Path $peers "$($coord.id).toml"
+        $target = "$($coord.id)/r@$expectedDomain"
+        $peerFile = Join-Path $peers "$($coord.id)@$expectedDomain.toml"
         if (Test-Path $peerFile) { throw 'Receiver peer config already exists; refusing overwrite.' }
-        "view_style = 'original'`nimage_quality = 'best'" | Set-Content -LiteralPath $peerFile -Encoding ASCII
+        # Explicit-server IDs take their trusted key from this peer option. Never
+        # send a keyless request or relax key checking to bypass routing failure.
+        "view_style = 'original'`nimage_quality = 'best'`n[options]`nother-server-key = '$expectedKey'" | Set-Content -LiteralPath $peerFile -Encoding ASCII
+        $result['routing']='explicit_expected_server'
+        $result['default_id_routing']='NOT_PROVEN; prior default ID/r attempt returned ID does not exist'
         $result.stage='sender_connect_and_display'
-        $ui = Start-Process $installed -ArgumentList "--connect $($coord.id)/r --password $password" -PassThru -RedirectStandardOutput "$private/ui.stdout" -RedirectStandardError "$private/ui.stderr"
+        $ui = Start-Process $installed -ArgumentList "--connect $target --password $password" -PassThru -RedirectStandardOutput "$private/ui.stdout" -RedirectStandardError "$private/ui.stderr"
         $ui.Id | Set-Content "$private/ui.pid"
         $password=$null
         $template = New-Object Drawing.Bitmap("$private/receiver-control/display-template.png")
@@ -230,7 +235,7 @@ try {
         $result.connection='PASS'
         $result['receiver_computer']=$coord.computer; $result['receiver_id']=$coord.id
         $result['visual_marker']=$coord.visual_marker; $result['input_marker']=$pub.input_marker
-        $result['connect_argument']="$($coord.id)/r"
+        $result['connect_argument']=$target
         $result.stage='sender_relay_endpoint'
         $relayAddresses = @([Net.Dns]::GetHostAddresses($expectedDomain) | ForEach-Object { $_.ToString() })
         $appPids = @(Get-Process AbritDesk -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
@@ -266,13 +271,13 @@ try {
     $result['failure']='Acceptance failed; inspect sanitized stage fields. Private command output intentionally withheld.'
     throw 'Two-machine acceptance failed. See sanitized result.json; no credential-bearing output published.'
 } finally {
-    if ($Role -eq 'sender') {
+    if ($Role -eq 'sender' -or $Phase -eq 'ReceiverAgent') {
         try {
-            $addresses = @([Net.Dns]::GetHostAddresses($expectedDomain) | ForEach-Object { $_.ToString() })
             $pids = @(Get-Process AbritDesk -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-            $connections = @(Get-NetTCPConnection -State Established | Where-Object { $_.OwningProcess -in $pids -and $_.RemotePort -eq 21117 -and $_.RemoteAddress -in $addresses } | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,OwningProcess)
-            Write-E2EJson $connections "$evidence/relay-tcp-final.json"
-        } catch { }
+            $connections = @(Get-NetTCPConnection -State Established | Where-Object { $_.OwningProcess -in $pids -and $_.RemotePort -in @(21115,21116,21117) } | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,OwningProcess)
+            Write-E2EJson $connections "$evidence/server-tcp-final.json"
+            Write-E2EJson @([Net.Dns]::GetHostAddresses($expectedDomain) | ForEach-Object { $_.ToString() }) "$evidence/expected-server-addresses.json"
+        } catch { $result['endpoint_diagnostic']='UNAVAILABLE' }
     }
     $result.observed_utc=[DateTime]::UtcNow.ToString('o')
     # The foreground receiver waiter must not overwrite its agent's evidence.

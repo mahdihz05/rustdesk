@@ -1,4 +1,4 @@
-# Safe local fixtures: no executable invocation, install, service mutation or desktop input.
+# Safe local fixtures: no application launch, install, service mutation or desktop input.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 foreach ($file in (Get-ChildItem "$PSScriptRoot/e2e*.ps1")) {
@@ -16,6 +16,9 @@ try {
     try { Invoke-E2EApp "$env:windir/System32/cmd.exe" '/c exit 7' $fixtureRoot } catch { $rejected=$true }
     if (-not $rejected) { throw 'Nonzero native process exit falsely accepted.' }
     'PASS redirected native process fixture: zero accepted, nonzero rejected'
+    Write-E2EJson @() "$fixtureRoot/empty.json"
+    if (((Get-Content "$fixtureRoot/empty.json" -Raw) -replace '\s','') -cne '[]') { throw 'Empty endpoint evidence must serialize as an array.' }
+    'PASS empty endpoint array serialization'
 } finally { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }
 Initialize-E2ENative
 $sender = New-Object Security.Cryptography.RSACryptoServiceProvider(3072)
