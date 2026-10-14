@@ -1,0 +1,51 @@
+# Safe local fixtures: no executable invocation, install, service mutation or desktop input.
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+foreach ($file in (Get-ChildItem "$PSScriptRoot/e2e*.ps1")) {
+    $tokens=$null; $errors=$null
+    $null = [Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors)
+    if ($errors.Count) { throw "PowerShell syntax failure: $($file.Name): $errors" }
+    "PASS syntax: $($file.Name)"
+}
+. "$PSScriptRoot/e2e-common.ps1"
+Initialize-E2ENative
+$sender = New-Object Security.Cryptography.RSACryptoServiceProvider(3072)
+$receiver = New-Object Security.Cryptography.RSACryptoServiceProvider
+$sender.PersistKeyInCsp=$false; $receiver.PersistKeyInCsp=$false
+try {
+    $publicXml=$sender.ToXmlString($false)
+    if ($publicXml -match '<(P|Q|D|DP|DQ|InverseQ)>') { throw 'Private RSA material in public key.' }
+    $receiver.FromXmlString($publicXml)
+    $password='0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF'
+    $cipher=$receiver.Encrypt([Text.Encoding]::UTF8.GetBytes($password),$true)
+    if ([Text.Encoding]::UTF8.GetString($sender.Decrypt($cipher,$true)) -cne $password) { throw 'Credential round trip failed.' }
+    'PASS RSA public-only OAEP credential round trip'
+} finally { $sender.Dispose(); $receiver.Dispose() }
+$template = New-Object Drawing.Bitmap(120,24)
+$screen = New-Object Drawing.Bitmap(240,100)
+$g=[Drawing.Graphics]::FromImage($template)
+$sg=[Drawing.Graphics]::FromImage($screen)
+try {
+    $g.Clear([Drawing.Color]::White)
+    $g.DrawString('DISPLAY_a19c7',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,0,0)
+    $sg.Clear([Drawing.Color]::White)
+    if ([E2ENative]::ContainsTemplate($screen,$template)) { throw 'Blank screen falsely accepted.' }
+    $sg.DrawImageUnscaled($template,37,29)
+    if (-not [E2ENative]::ContainsTemplate($screen,$template)) { throw 'Visible template rejected.' }
+    $sg.Clear([Drawing.Color]::White)
+    $sg.DrawString('WRONG_12345',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,37,29)
+    if ([E2ENative]::ContainsTemplate($screen,$template)) { throw 'Wrong marker falsely accepted.' }
+    'PASS display fixtures: blank and wrong text rejected; visible text accepted'
+} finally { $g.Dispose(); $sg.Dispose(); $template.Dispose(); $screen.Dispose() }
+$workflow=Get-Content "$PSScriptRoot/../../.github/workflows/abritdesk-connection-e2e.yml" -Raw
+if ($workflow -match '(?m)^\s+needs:' -or $workflow -notmatch 'role: \[receiver, sender\]' -or
+    $workflow -notmatch 'fail-fast: false' -or $workflow -notmatch 'runs-on: windows-2022' -or
+    $workflow -notmatch 'timeout-minutes: 20' -or $workflow -match '\$\{\{\s*secrets\.') { throw 'Workflow topology/security fixture failed.' }
+if ($workflow -match '(?m)^\s+path:.*(?:private|abrit-e2e/\s*$)') { throw 'Broad/private artifact upload forbidden.' }
+'PASS workflow static fixtures: independent jobs, restricted evidence paths, no secrets'
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+    $rejected=$false
+    try { Assert-E2ERunner } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Local-run guard failed.' }
+    'PASS developer-machine safety guard'
+}

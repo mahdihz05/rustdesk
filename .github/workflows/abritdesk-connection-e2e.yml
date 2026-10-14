@@ -1,0 +1,81 @@
+name: AbritDesk Two-Machine Connection E2E
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/abritdesk-1.0.0-connection]
+    paths:
+      - '.github/workflows/abritdesk-connection-e2e.yml'
+      - 'res/abrit/e2e*.ps1'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  E2E_BUILD_RUN: '38449754633'
+  E2E_BUILD_SHA: '13f49231730377ca1c76d46340e936fcea1f7ec1'
+
+jobs:
+  desktop:
+    name: Windows 2022 ${{ matrix.role }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [receiver, sender]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Verify build provenance
+        shell: powershell
+        run: |
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:E2E_BUILD_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $env:E2E_BUILD_SHA -or $run.conclusion -ne 'success') { throw 'Source build provenance mismatch' }
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: rustdesk-unsigned-windows-x86_64
+          path: existing-build
+          run-id: '38449754633'
+          github-token: ${{ github.token }}
+      - name: Initialize isolated runner
+        shell: powershell
+        run: ./res/abrit/e2e.ps1 -Phase Initialize -Role ${{ matrix.role }}
+      - name: Upload sender public key only
+        if: matrix.role == 'sender'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: e2e-public-key-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/abrit-e2e/public/public.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Start persistent receiver agent and await encrypted control
+        if: matrix.role == 'receiver'
+        shell: powershell
+        run: ./res/abrit/e2e.ps1 -Phase StartReceiver -Role receiver
+      - name: Upload encrypted receiver control and safe display template
+        if: matrix.role == 'receiver'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: e2e-receiver-control-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/abrit-e2e/control/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Drive sender desktop or wait for receiver observation
+        shell: powershell
+        run: ./res/abrit/e2e.ps1 -Phase Exercise -Role ${{ matrix.role }}
+      - name: Cleanup owned processes and installation
+        if: always()
+        shell: powershell
+        run: ./res/abrit/e2e.ps1 -Phase Cleanup -Role ${{ matrix.role }}
+      - name: Upload sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: e2e-${{ matrix.role }}-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/abrit-e2e/evidence/
+          if-no-files-found: warn
+          retention-days: 7
