@@ -1,0 +1,118 @@
+name: AbritDesk Windows Acceptance Only
+
+on:
+  push:
+    branches: [fix/abritdesk-1.0.0-connection]
+    paths:
+      - .github/workflows/abritdesk-windows-acceptance.yml
+      - res/abrit/test_windows_identity.ps1
+      - res/abrit/test_readonly_profile.ps1
+  workflow_dispatch:
+    inputs:
+      build-run:
+        description: Existing compiled source run
+        required: true
+        type: string
+      build-sha:
+        description: Exact binary source SHA (not acceptance script SHA)
+        required: true
+        type: string
+      release-tag:
+        description: New unused experimental preview tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: abritdesk-acceptance-publication
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN: ${{ inputs.build-run }}
+      BUILD_SHA: ${{ inputs.build-sha }}
+      RELEASE_TAG: ${{ inputs.release-tag }}
+    steps:
+      - name: Checkout acceptance scripts
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Verify exact source provenance and unused release tag
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory windows-acceptance -Force | Out-Null
+          if ($env:BUILD_RUN -notmatch '^[0-9]+$' -or $env:BUILD_SHA -notmatch '^[0-9a-f]{40}$') { throw 'Invalid source run/SHA' }
+          if ($env:RELEASE_TAG -notmatch '^abritdesk-v1\.0\.0-connection-preview\.[0-9]+$') { throw 'Only experimental preview tags are permitted' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $env:BUILD_SHA -or $run.status -ne 'completed') { throw 'Source provenance mismatch' }
+          $pages = gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN/jobs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Source jobs API failed' }
+          $jobs = @($pages | ForEach-Object { $_.jobs })
+          $windows = @($jobs | Where-Object { $_.name -eq 'run-flutter-tag-build / x86_64-pc-windows-msvc' })
+          if ($windows.Count -ne 1) { throw 'Expected one source Windows x64 job' }
+          $required = @('Build rustdesk', 'Build self-extracted executable', 'Build msi', 'Test Windows responsive layouts and window sizing')
+          foreach ($name in $required) {
+            $step = @($windows[0].steps | Where-Object { $_.name -ceq $name })
+            if ($step.Count -ne 1 -or $step[0].conclusion -ne 'success') { throw "Required source step did not succeed: $name" }
+          }
+          $failed = @($windows[0].steps | Where-Object { $_.conclusion -eq 'failure' })
+          if ($failed.Count -gt 1 -or ($failed.Count -eq 1 -and $failed[0].name -cne 'Test Windows startup, branding and independent services')) { throw 'Source has a failure outside the corrected acceptance harness' }
+          $refs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify tag absence' }
+          if (@($refs | Where-Object { $_.ref -ceq "refs/tags/$env:RELEASE_TAG" }).Count) { throw 'Tag already exists; never move or overwrite it' }
+          $releases = gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify release absence' }
+          if (@($releases | ForEach-Object { $_ } | Where-Object { $_.tag_name -ceq $env:RELEASE_TAG }).Count) { throw 'Release already exists' }
+          [ordered]@{ source_run=$env:BUILD_RUN; binary_source_sha=$run.head_sha; source_build_conclusion=$run.conclusion; verified_steps=$required; acceptance_script_sha=$env:GITHUB_SHA } |
+            ConvertTo-Json | Set-Content windows-acceptance/source-provenance.json
+      - name: Download compiled native bundle without rebuilding
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: rustdesk-unsigned-windows-x86_64
+          path: existing-build/
+          run-id: ${{ inputs.build-run }}
+          github-token: ${{ github.token }}
+      - name: Download finished EXE and MSI
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-windows-x64-packages-1.0.0
+          path: SignOutput/
+          run-id: ${{ inputs.build-run }}
+          github-token: ${{ github.token }}
+      - name: Run identity and harness regression fixtures
+        run: |
+          python res/abrit/test_identity.py
+          if ($LASTEXITCODE -ne 0) { throw 'Python identity tests failed' }
+          ./res/abrit/test_msi_property.ps1
+          ./res/abrit/test_readonly_profile.ps1
+      - name: Actual compiled packaging and coexistence acceptance
+        run: |
+          ./res/abrit/test_windows_identity.ps1 -Executable existing-build/AbritDesk.exe -Output windows-acceptance -LiveConnection -Installer SignOutput/abritdesk-1.0.0-x86_64.msi -Portable SignOutput/abritdesk-1.0.0-x86_64.exe
+          Get-FileHash SignOutput/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content windows-acceptance/SHA256SUMS.txt
+          "Acceptance PASS for binary source $env:BUILD_SHA. Source build conclusion is recorded independently. Public remote desktop E2E is NOT accepted." | Add-Content $env:GITHUB_STEP_SUMMARY
+      - name: Upload acceptance evidence always
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-windows-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: windows-acceptance/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish new experimental release only after acceptance PASS
+        run: |
+          $refs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or @($refs | Where-Object { $_.ref -ceq "refs/tags/$env:RELEASE_TAG" }).Count) { throw 'Tag unavailable; refusing publication' }
+          $notes = "Experimental unsigned Windows x64 preview. Binary source: $env:BUILD_SHA; compiled source run: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN (overall failure in old acceptance harness, required build/MSI/widget steps verified successful). New acceptance PASS: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID. Validated packaging, private/installed distinct IDs, password readiness, restart stability, native GUI class, and stock RustDesk preservation. Public remote desktop E2E is NOT accepted: public endpoint inconsistency remains unresolved. Supersedes preview.2 shared-ID behavior. No native rebuild."
+          gh release create $env:RELEASE_TAG SignOutput/abritdesk-1.0.0-x86_64.exe SignOutput/abritdesk-1.0.0-x86_64.msi windows-acceptance/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:BUILD_SHA --prerelease --latest=false --title "AbritDesk 1.0.0 connection preview" --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; never retry by overwriting assets' }

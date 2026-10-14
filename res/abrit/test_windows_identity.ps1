@@ -103,6 +103,41 @@ function Get-MsiProperty($Database, [string]$Name) {
     return $value
 }
 
+function Stop-OwnedSourceProcesses {
+    if ($exe -ieq $installedExe) { throw 'Source process cleanup must not target the installed executable.' }
+    # Only this test's source binary can have left codec/tray children on this fresh runner.
+    foreach ($process in (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath -ieq $exe })) {
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+    }
+}
+
+function Get-ProfileSnapshot([string]$Path) {
+    $exists = Test-Path -LiteralPath $Path
+    [ordered]@{ exists = $exists; sha256 = if ($exists) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash } else { $null } } |
+        ConvertTo-Json -Compress
+}
+
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class AcceptanceNative {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+    static extern uint GetFinalPathNameByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle handle, StringBuilder path, uint size, uint flags);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr window, StringBuilder name, int size);
+    public static string CanonicalPath(string path) {
+        using (var file = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
+            var result = new StringBuilder(32768);
+            uint length = GetFinalPathNameByHandle(file.SafeFileHandle, result, (uint)result.Capacity, 0);
+            if (length == 0 || length >= result.Capacity) throw new System.ComponentModel.Win32Exception();
+            return result.ToString();
+        }
+    }
+}
+'@
+
 function Assert-LiveConnection([string]$Path, [string]$Stage, [switch]$Standalone, [string]$Baseline) {
     $parameters = @{
         Executable = $Path
@@ -162,7 +197,26 @@ try {
         $installedStatus = Invoke-App $installedExe '--connection-status-json' 'installed-before-coexistence' | ConvertFrom-Json
         $serviceConfig = "$env:windir\ServiceProfiles\LocalService\AppData\Roaming\AbritDesk\config\AbritDesk.toml"
         $serviceHash = (Get-FileHash -LiteralPath $serviceConfig -Algorithm SHA256).Hash
+        Stop-OwnedSourceProcesses
+        $canonical = [AcceptanceNative]::CanonicalPath($exe).Replace('/', '\')
+        if ($canonical.StartsWith('\\?\UNC\')) { $canonical = '\\' + $canonical.Substring(8) }
+        elseif ($canonical.StartsWith('\\?\')) { $canonical = $canonical.Substring(4) }
+        $canonical = $canonical.ToLowerInvariant()
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try { $pathHash = -join ($sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical)) | ForEach-Object { $_.ToString('x2') }) }
+        finally { $sha256.Dispose() }
+        $privateName = "AbritDesk-Portable-v2-$pathHash"
+        $privateConfig = Join-Path $env:APPDATA "$privateName\config\$privateName.toml"
+        $profileBefore = Get-ProfileSnapshot $privateConfig
         $portableIdentity = Invoke-App $exe '--identity-json' 'portable-coexistence-identity' | ConvertFrom-Json
+        $profileAfter = Get-ProfileSnapshot $privateConfig
+        [ordered]@{ path=$privateConfig; before=($profileBefore | ConvertFrom-Json); after=($profileAfter | ConvertFrom-Json) } |
+            ConvertTo-Json -Depth 4 | Set-Content (Join-Path $outputPath 'readonly-profile.json')
+        if ($portableIdentity.config_file -ine $privateConfig -or
+            $portableIdentity.ipc -cne "\\.\pipe\$privateName\query" -or
+            $portableIdentity.window_class -cne "$($identity.window_class)_$privateName") {
+            throw 'Computed canonical private namespace does not match the native identity.'
+        }
         if ($portableIdentity.app_name -cne 'AbritDesk' -or $portableIdentity.uri_prefix -cne 'abritdesk://' -or
             $portableIdentity.ipc -notlike '\\.\pipe\AbritDesk-Portable-*\query' -or
             $portableIdentity.config_file -like "$env:APPDATA\AbritDesk\config\*" -or
@@ -170,13 +224,33 @@ try {
             $portableIdentity.tray_mutex -eq $identity.tray_mutex) {
             throw 'Portable runtime does not isolate IPC, configuration, window class and tray while preserving the visible identity.'
         }
-        if (Test-Path -LiteralPath $portableIdentity.config_file) {
-            throw 'A read-only identity query initialized the unused portable host profile.'
+        if ($profileBefore -cne $profileAfter) {
+            throw 'A read-only identity query changed the portable host profile existence or content.'
         }
         Assert-LiveConnection $exe 'portable-coexistence' -Standalone
         $portableStatus = Get-Content -LiteralPath (Join-Path $outputPath 'portable-coexistence/Registration.json') -Raw | ConvertFrom-Json
         if ($portableStatus.id -ceq $installedStatus.id) {
             throw 'Separate portable and installed runtimes must not register the same MAC-derived ID.'
+        }
+        Stop-OwnedSourceProcesses
+        $gui = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            do {
+                $gui.Refresh()
+                if ($gui.HasExited) { throw 'Owned private GUI exited before acceptance.' }
+                if ($gui.MainWindowHandle -ne [IntPtr]::Zero) { break }
+                Start-Sleep -Milliseconds 500
+            } while ([DateTime]::UtcNow -lt $deadline)
+            $class = New-Object Text.StringBuilder 512
+            if ([AcceptanceNative]::GetClassName($gui.MainWindowHandle, $class, $class.Capacity) -eq 0 -or
+                $class.ToString() -cne $portableIdentity.window_class) { throw 'Actual C++ GUI window class does not match the private Rust identity.' }
+            Assert-LiveConnection $exe 'portable-coexistence-gui' -Baseline (Join-Path $outputPath 'portable-coexistence/Registration.json')
+            [ordered]@{ window_class=$class.ToString(); native_window_class=$portableIdentity.window_class; owned_pid=$gui.Id } |
+                ConvertTo-Json | Set-Content (Join-Path $outputPath 'private-gui.json')
+        } finally {
+            if (-not $gui.HasExited) { $null = $gui.CloseMainWindow(); $null = $gui.WaitForExit(10000) }
+            Stop-OwnedSourceProcesses
         }
         Assert-LiveConnection $exe 'portable-coexistence-restart' -Standalone -Baseline (Join-Path $outputPath 'portable-coexistence/Registration.json')
         $installedAfter = Invoke-App $installedExe '--connection-status-json' 'installed-after-coexistence' | ConvertFrom-Json
