@@ -158,6 +158,28 @@ try {
     $service = Get-Service AbritDesk
     $service.WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
     if ($LiveConnection) { Assert-LiveConnection $installedExe 'installed-registration' }
+    if ($LiveConnection) {
+        $installedStatus = Invoke-App $installedExe '--connection-status-json' 'installed-before-coexistence' | ConvertFrom-Json
+        $serviceConfig = "$env:windir\ServiceProfiles\LocalService\AppData\Roaming\AbritDesk\config\AbritDesk.toml"
+        $serviceHash = (Get-FileHash -LiteralPath $serviceConfig -Algorithm SHA256).Hash
+        $portableIdentity = Invoke-App $exe '--identity-json' 'portable-coexistence-identity' | ConvertFrom-Json
+        if ($portableIdentity.app_name -cne 'AbritDesk' -or $portableIdentity.uri_prefix -cne 'abritdesk://' -or
+            $portableIdentity.ipc -notlike '\\.\pipe\AbritDesk-Portable-*\query' -or
+            $portableIdentity.config_file -like "$env:APPDATA\AbritDesk\config\*" -or
+            $portableIdentity.window_class -eq $identity.window_class -or
+            $portableIdentity.tray_mutex -eq $identity.tray_mutex) {
+            throw 'Portable runtime does not isolate IPC, configuration, window class and tray while preserving the visible identity.'
+        }
+        Assert-LiveConnection $exe 'portable-coexistence' -Standalone
+        Assert-LiveConnection $exe 'portable-coexistence-restart' -Standalone -Baseline (Join-Path $outputPath 'portable-coexistence/Registration.json')
+        $installedAfter = Invoke-App $installedExe '--connection-status-json' 'installed-after-coexistence' | ConvertFrom-Json
+        if ($installedAfter.ipc_ok -ne $true -or $installedAfter.id -cne $installedStatus.id -or
+            $installedAfter.temporary_password_ready -ne $true -or
+            (Get-FileHash -LiteralPath $serviceConfig -Algorithm SHA256).Hash -cne $serviceHash) {
+            throw 'Portable execution changed the installed identity/key configuration or broke its IPC/password.'
+        }
+        Assert-StockUnchanged 'portable-coexistence'
+    }
     Assert-StockUnchanged 'install'
     Stop-Service AbritDesk
     (Get-Service AbritDesk).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))

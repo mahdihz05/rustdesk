@@ -125,7 +125,9 @@ impl Drop for SimpleCallOnReturn {
 
 pub fn global_init() -> bool {
     #[cfg(windows)]
-    crate::platform::windows::initialize_abrit_identity();
+    if !crate::platform::windows::initialize_abrit_identity() {
+        return false;
+    }
     #[cfg(all(target_os = "linux", feature = "drm"))]
     crate::platform::linux::dispatch_wayland_display_probe();
     #[cfg(target_os = "linux")]
@@ -1068,6 +1070,9 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
 
 #[inline]
 pub fn get_app_name() -> String {
+    #[cfg(windows)]
+    return crate::platform::windows::abrit_app_name();
+    #[cfg(not(windows))]
     hbb_common::config::APP_NAME.read().unwrap().clone()
 }
 

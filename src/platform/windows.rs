@@ -114,14 +114,30 @@ use installer_shell::{
 
 pub const FLUTTER_RUNNER_WIN32_WINDOW_CLASS: &'static str = "ABRITDESK_FLUTTER_RUNNER_WIN32_WINDOW"; // main window, install window
 mod abrit_identity;
+mod abrit_portable;
 
-pub fn initialize_abrit_identity() {
+pub fn initialize_abrit_identity() -> bool {
     // This must precede any lazy Config/IPC/service initialization, including portable helpers.
     *config::APP_NAME.write().unwrap() = abrit_identity::APP_NAME.to_owned();
+    // Signed installation policy must be known before choosing a permanent runtime namespace.
+    crate::load_custom_client();
+    if let Err(err) = abrit_portable::initialize() {
+        eprintln!("Failed to initialize AbritDesk runtime identity: {err}");
+        return false;
+    }
     let mut settings = config::DEFAULT_SETTINGS.write().unwrap();
     for (key, value) in [("custom-rendezvous-server", abrit_identity::SERVER), ("relay-server", abrit_identity::SERVER), ("key", abrit_identity::SERVER_KEY)] {
         settings.entry(key.to_owned()).or_insert_with(|| value.to_owned());
     }
+    true
+}
+
+pub fn abrit_app_name() -> String {
+    abrit_identity::APP_NAME.to_owned()
+}
+
+pub fn abrit_runtime_window_class() -> &'static str {
+    abrit_portable::window_class()
 }
 
 pub fn abrit_identity_snapshot() -> serde_json::Value {
@@ -136,8 +152,8 @@ pub fn abrit_identity_snapshot() -> serde_json::Value {
         "ipc": Config::ipc_path(""),
         "service_ipc": Config::ipc_path("_service"),
         "uri_prefix": crate::get_uri_prefix(),
-        "window_class": FLUTTER_RUNNER_WIN32_WINDOW_CLASS,
-        "tray_mutex": format!("Local\\{}_tray", crate::get_app_name()),
+        "window_class": abrit_runtime_window_class(),
+        "tray_mutex": format!("Local\\{}_tray", abrit_portable::runtime_name()),
         "broker": WIN_TOPMOST_INJECTED_PROCESS_EXE,
     })
 }
@@ -168,6 +184,14 @@ pub async fn abrit_connection_status_json() -> serde_json::Value {
             _ => return Err("id_reply_failed"),
         };
         connection
+            .send(&Data::Config(("temporary-password".to_owned(), None)))
+            .await
+            .map_err(|_| "password_status_send_failed")?;
+        let password_ready = match connection.next_timeout(1_000).await {
+            Ok(Some(Data::Config((name, Some(password))))) if name == "temporary-password" => !password.is_empty(),
+            _ => return Err("password_status_reply_failed"),
+        };
+        connection
             .send(&Data::Options(None))
             .await
             .map_err(|_| "options_send_failed")?;
@@ -186,6 +210,7 @@ pub async fn abrit_connection_status_json() -> serde_json::Value {
             "latency": latency,
             "key_confirmed": key_confirmed,
             "id": id,
+            "temporary_password_ready": password_ready,
             "server": server,
             "relay": relay,
             "key": key,
@@ -202,6 +227,7 @@ pub async fn abrit_connection_status_json() -> serde_json::Value {
         "latency": null,
         "key_confirmed": null,
         "id": null,
+        "temporary_password_ready": false,
         "server": null,
         "relay": null,
         "key": null,
@@ -1341,6 +1367,10 @@ pub fn get_active_user_home() -> Option<PathBuf> {
 #[cfg(not(feature = "flutter"))]
 #[inline]
 pub fn portable_service_logon_helper_paths() -> Option<(PathBuf, PathBuf)> {
+    // A copied helper would derive a different private namespace. Use the original exe.
+    if abrit_portable::is_private() {
+        return None;
+    }
     // Keep parity with history for now: derive LocalAppData from user profile path.
     // If users report redirected/non-standard LocalAppData issues, switch to:
     // `BaseDirs::new()?.data_local_dir()` for Known Folder-based resolution.
@@ -2030,6 +2060,9 @@ pub fn add_recent_document(path: &str) {
 }
 
 pub fn is_installed() -> bool {
+    if abrit_portable::is_private() {
+        return false;
+    }
     let (_, _, _, exe) = get_install_info();
     std::fs::metadata(exe).is_ok()
 }
@@ -2861,10 +2894,15 @@ pub fn send_message_to_hnwd(
     show_window: bool,
 ) -> bool {
     unsafe {
+        let class_name = if class_name == FLUTTER_RUNNER_WIN32_WINDOW_CLASS {
+            abrit_runtime_window_class()
+        } else {
+            class_name
+        };
         let class_name_utf16 = wide_string(class_name);
         let window_name_utf16 = wide_string(window_name);
         let mut window = FindWindowW(class_name_utf16.as_ptr(), window_name_utf16.as_ptr());
-        if window.is_null() && class_name == FLUTTER_RUNNER_WIN32_WINDOW_CLASS
+        if window.is_null() && class_name == abrit_runtime_window_class()
             && window_name == crate::get_app_name().as_str() {
             let display_name = wide_string(crate::common::get_display_app_name());
             window = FindWindowW(class_name_utf16.as_ptr(), display_name.as_ptr());
@@ -3364,7 +3402,7 @@ pub fn try_lock_tray_single_instance() -> bool {
     };
     // `Local\` is the per session namespace, so the name is scoped to this
     // session already and cannot be squatted by another user.
-    let name = wide_string(&format!("Local\\{}_tray", crate::get_app_name()));
+    let name = wide_string(&format!("Local\\{}_tray", abrit_portable::runtime_name()));
     unsafe {
         // A successful `CreateMutexW` doesn't clear the last error, clear it to
         // reliably detect `ERROR_ALREADY_EXISTS`.
@@ -4132,6 +4170,9 @@ pub fn try_remove_temp_update_files() {
 
 #[inline]
 pub fn try_kill_broker() {
+    if abrit_portable::is_private() {
+        return;
+    }
     allow_err!(std::process::Command::new("cmd")
         .arg("/c")
         .arg(&format!(
@@ -4293,6 +4334,9 @@ fn validate_abrit_service_executable(exe: &str) -> ResultType<()> {
 
 #[inline]
 pub fn is_self_service_running() -> bool {
+    if abrit_portable::is_private() {
+        return false;
+    }
     is_service_running(&crate::get_app_name())
 }
 
@@ -4322,6 +4366,9 @@ pub fn release_arch_suffix() -> Option<&'static str> {
 }
 
 pub fn try_kill_rustdesk_main_window_process() -> ResultType<()> {
+    if abrit_portable::is_private() {
+        bail!("Private portable runtime must not kill installed main windows");
+    }
     // Kill rustdesk.exe without extra arg, should only be called by --server
     // We can find the exact process which occupies the ipc, see more from https://github.com/winsiderss/systeminformer
     let app_name = crate::get_app_name().to_lowercase();

@@ -9,6 +9,8 @@
 #include <cstring> // for strcmp
 #include <string> // for std::wstring
 
+const wchar_t* getWindowClassName();
+
 namespace {
 
 constexpr const wchar_t kWindowClassName[] = L"ABRITDESK_FLUTTER_RUNNER_WIN32_WINDOW";
@@ -114,7 +116,7 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
   if (!class_registered_) {
     WNDCLASS window_class{};
     window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    window_class.lpszClassName = kWindowClassName;
+    window_class.lpszClassName = getWindowClassName();
     window_class.style = CS_HREDRAW | CS_VREDRAW;
     window_class.cbClsExtra = 0;
     window_class.cbWndExtra = 0;
@@ -135,11 +137,11 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
     RegisterClass(&window_class);
     class_registered_ = true;
   }
-  return kWindowClassName;
+  return getWindowClassName();
 }
 
 void WindowClassRegistrar::UnregisterWindowClass() {
-  UnregisterClass(kWindowClassName, nullptr);
+  UnregisterClass(getWindowClassName(), nullptr);
   class_registered_ = false;
   
   // Clean up the custom icon if it was loaded
@@ -334,5 +336,16 @@ void Win32Window::OnDestroy() {
 }
 
 const wchar_t* getWindowClassName() {
-  return kWindowClassName;
+  static const std::wstring name = [] {
+    using GetRuntimeClass = int (*)(wchar_t*, int);
+    auto module = GetModuleHandleW(L"librustdesk.dll");
+    auto get_class = module ? reinterpret_cast<GetRuntimeClass>(
+        GetProcAddress(module, "get_abrit_runtime_window_class")) : nullptr;
+    wchar_t buffer[256] = {0};
+    if (get_class && get_class(buffer, 256) == 0) {
+      return std::wstring(buffer);
+    }
+    return std::wstring(kWindowClassName);
+  }();
+  return name.c_str();
 }

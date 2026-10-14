@@ -16,6 +16,15 @@ SPEC.loader.exec_module(MSI)
 
 
 class IdentityTests(unittest.TestCase):
+    def test_signed_installation_policy_precedes_portable_namespace_selection(self):
+        native = (ROOT / "src/platform/windows.rs").read_text(encoding="utf-8")
+        initialization = native.split("pub fn initialize_abrit_identity()", 1)[1].split("pub fn abrit_app_name()", 1)[0]
+        self.assertLess(initialization.index("crate::load_custom_client()"), initialization.index("abrit_portable::initialize()"))
+        runtime = (ROOT / "src/platform/windows/abrit_portable.rs").read_text(encoding="utf-8")
+        self.assertIn('arg == "--install") && config::is_disable_installation()', runtime)
+        core = (ROOT / "src/core_main.rs").read_text(encoding="utf-8")
+        self.assertIn('#[cfg(not(windows))]\n    crate::load_custom_client();', core)
+
     def test_native_flutter_and_locked_release_versions_match(self):
         manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
         version = re.search(r'^version\s*=\s*"([^"]+)"', manifest, re.M).group(1)

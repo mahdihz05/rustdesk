@@ -33,6 +33,7 @@ pub fn core_main() -> Option<Vec<String>> {
     if !crate::common::global_init() {
         return None;
     }
+    #[cfg(not(windows))]
     crate::load_custom_client();
     #[cfg(windows)]
     if std::env::args().nth(1).as_deref() == Some("--connection-status-json") {

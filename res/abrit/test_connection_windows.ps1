@@ -73,6 +73,7 @@ try {
         $safe = [ordered]@{
             ipc_ok = $snapshot.ipc_ok; latency = $snapshot.latency
             key_confirmed = $snapshot.key_confirmed; id = $snapshot.id
+            temporary_password_ready = $snapshot.temporary_password_ready
             server = $snapshot.server; relay = $snapshot.relay; key = $snapshot.key
             error = $snapshot.error; phase = $Phase; observed_utc = [DateTime]::UtcNow.ToString('o')
             baseline_id = $baselineId; boot_utc = $bootUtc; computer_name = $env:COMPUTERNAME
@@ -81,7 +82,7 @@ try {
         $configurationOk = $snapshot.server -ceq $ExpectedDomain -and $snapshot.relay -ceq $ExpectedRelay -and $snapshot.key -ceq $ExpectedKey
         $identityOk = -not [string]::IsNullOrWhiteSpace($snapshot.id) -and (-not $baselineId -or $snapshot.id -ceq $baselineId)
         $stateOk = if ($offline) { $null -ne $snapshot.latency -and $snapshot.latency -le 0 } else { $snapshot.latency -gt 0 -and $snapshot.key_confirmed -eq $true }
-        if ($snapshot.ipc_ok -eq $true -and $configurationOk -and $identityOk -and $stateOk) {
+        if ($snapshot.ipc_ok -eq $true -and $snapshot.temporary_password_ready -eq $true -and $configurationOk -and $identityOk -and $stateOk) {
             $label = if ($offline) { 'offline ID stability' } else { 'live server registration' }
             "PASS: $label ($Phase). This does not prove a remote desktop session. Evidence: $evidence"
             return
