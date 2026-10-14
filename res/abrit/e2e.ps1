@@ -102,7 +102,7 @@ try {
         if (-not $service -or $service.PathName -ine ('"' + $installed + '" --service') -or $service.StartName -ne 'LocalSystem') { throw 'Native installation identity mismatch.' }
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
         $result.stage='receiver_registration'
-        & "$PSScriptRoot/test_connection_windows.ps1" -Executable $installed -Output "$evidence/registration" -ExpectedDomain $expectedDomain -ExpectedKey $expectedKey
+        Invoke-E2ERegistration $installed $private "$evidence/registration" $expectedDomain $expectedKey
         $reg = Get-Content "$evidence/registration/Registration.json" -Raw | ConvertFrom-Json
         $result.registration = 'PASS'
         $bytes = New-Object byte[] 32
@@ -188,7 +188,7 @@ try {
         Invoke-E2EApp $exe '--silent-install printer=0' $private -AllowInstallerTermination
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
         $result.stage='sender_registration'
-        & "$PSScriptRoot/test_connection_windows.ps1" -Executable $installed -Output "$evidence/registration" -ExpectedDomain $expectedDomain -ExpectedKey $expectedKey
+        Invoke-E2ERegistration $installed $private "$evidence/registration" $expectedDomain $expectedKey
         $result.registration='PASS'
         # A new peer file on this disposable sender only; server/key defaults stay untouched.
         $peers = Join-Path $env:APPDATA 'AbritDesk/config/peers'

@@ -8,6 +8,15 @@ foreach ($file in (Get-ChildItem "$PSScriptRoot/e2e*.ps1")) {
     "PASS syntax: $($file.Name)"
 }
 . "$PSScriptRoot/e2e-common.ps1"
+$fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "opencode/e2e-fixture-$([Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
+try {
+    Invoke-E2EApp "$env:windir/System32/cmd.exe" '/c exit 0' $fixtureRoot
+    $rejected=$false
+    try { Invoke-E2EApp "$env:windir/System32/cmd.exe" '/c exit 7' $fixtureRoot } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Nonzero native process exit falsely accepted.' }
+    'PASS redirected native process fixture: zero accepted, nonzero rejected'
+} finally { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }
 Initialize-E2ENative
 $sender = New-Object Security.Cryptography.RSACryptoServiceProvider(3072)
 $receiver = New-Object Security.Cryptography.RSACryptoServiceProvider

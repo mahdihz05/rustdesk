@@ -32,9 +32,30 @@ function Wait-E2EArtifact([string]$Name, [string]$Destination) {
 
 function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirectory, [switch]$AllowInstallerTermination) {
     $p = Start-Process -FilePath $Exe -ArgumentList $Arguments -WorkingDirectory (Split-Path $Exe) -PassThru -WindowStyle Hidden -RedirectStandardOutput "$PrivateDirectory/stdout" -RedirectStandardError "$PrivateDirectory/stderr"
+    # PowerShell 5.1 loses ExitCode for redirected processes unless the handle is retained.
+    $null = $p.Handle
     if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'Native command timed out (arguments suppressed).' }
     # Commands can print credentials on failure. Never publish their output.
     if ($p.ExitCode -ne 0 -and -not $AllowInstallerTermination) { throw 'Native command failed (output suppressed).' }
+}
+
+function Invoke-E2ERegistration([string]$Exe, [string]$PrivateDirectory, [string]$Output, [string]$Domain, [string]$Key) {
+    New-Item -ItemType Directory -Path $Output -Force | Out-Null
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        Invoke-E2EApp $Exe '--connection-status-json' $PrivateDirectory
+        $snapshot = Get-Content "$PrivateDirectory/stdout" -Raw | ConvertFrom-Json
+        $safe = [ordered]@{
+            ipc_ok=$snapshot.ipc_ok; latency=$snapshot.latency; key_confirmed=$snapshot.key_confirmed
+            id=$snapshot.id; server=$snapshot.server; relay=$snapshot.relay; key=$snapshot.key
+            error=$snapshot.error; phase='Registration'; observed_utc=[DateTime]::UtcNow.ToString('o')
+        }
+        Write-E2EJson $safe "$Output/Registration.json"
+        if ($snapshot.ipc_ok -eq $true -and $snapshot.latency -gt 0 -and $snapshot.key_confirmed -eq $true -and
+            $snapshot.id -match '^\d+$' -and $snapshot.server -ceq $Domain -and $snapshot.relay -ceq $Domain -and $snapshot.key -ceq $Key) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    throw 'Live registration diagnostic did not confirm the expected ID/server/key/relay.'
 }
 
 function Initialize-E2ENative {
