@@ -1,5 +1,7 @@
 # AbrIT Desk 1.0.0 Connection Investigation
 
+Follow-up: [Portable password/IPC fix and Preview 3 results](ABRIT_PORTABLE_PASSWORD_FIX.md). The original results below are historical; the follow-up distinguishes the verified application fix from the still-failing public desktop path.
+
 ## Delivery Status
 
 **Experimental build available; end-to-end remote desktop acceptance FAILED. Do not promote this build as a verified connection fix.**
