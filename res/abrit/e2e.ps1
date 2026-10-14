@@ -203,15 +203,21 @@ try {
         $template = New-Object Drawing.Bitmap("$private/receiver-control/display-template.png")
         $deadline = [DateTime]::UtcNow.AddMinutes(4)
         $session = [IntPtr]::Zero
+        $result['session_window_seen']=$false; $result['session_foreground_seen']=$false
         try {
             while ([DateTime]::UtcNow -lt $deadline) {
                 $session = [E2ENative]::SessionWindow($coord.id)
                 if ($session -ne [IntPtr]::Zero) {
+                    $result.session_window_seen=$true
                     $null = [E2ENative]::ShowWindow($session,3)
                     $null = [E2ENative]::SetForegroundWindow($session)
                     Start-Sleep -Seconds 2
                     if ([E2ENative]::GetForegroundWindow() -ne $session) { continue }
+                    $result.session_foreground_seen=$true
                     Save-E2EScreen "$private/sender-screen.png" $session
+                    # This is only the ID-specific Remote Desktop window, not the
+                    # local dashboard which can display a temporary password.
+                    Copy-Item "$private/sender-screen.png" "$evidence/sender-session.png"
                     $screen = New-Object Drawing.Bitmap("$private/sender-screen.png")
                     try { $visible = [E2ENative]::ContainsTemplate($screen,$template) } finally { $screen.Dispose() }
                     if ($visible) { $result.display='PASS'; break }
@@ -235,6 +241,12 @@ try {
         if ([E2ENative]::GetForegroundWindow() -ne $session) { throw 'Sender session lost foreground before input.' }
         # Only native keyboard events enter the remote session; never paste a clipboard.
         $result.stage='sender_native_input'
+        $bounds = New-Object E2ENative+Rect
+        $null = [E2ENative]::GetWindowRect($session,[ref]$bounds)
+        $null = [E2ENative]::SetCursorPos(($bounds.Left+[E2ENative]::MatchX+20),($bounds.Top+[E2ENative]::MatchY+8))
+        [E2ENative]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+        [E2ENative]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 300
         [Windows.Forms.SendKeys]::SendWait('^{END}')
         [Windows.Forms.SendKeys]::SendWait('{ENTER}' + $pub.input_marker)
         $result.input='SENT_NOT_YET_OBSERVED'
@@ -254,6 +266,14 @@ try {
     $result['failure']='Acceptance failed; inspect sanitized stage fields. Private command output intentionally withheld.'
     throw 'Two-machine acceptance failed. See sanitized result.json; no credential-bearing output published.'
 } finally {
+    if ($Role -eq 'sender') {
+        try {
+            $addresses = @([Net.Dns]::GetHostAddresses($expectedDomain) | ForEach-Object { $_.ToString() })
+            $pids = @(Get-Process AbritDesk -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+            $connections = @(Get-NetTCPConnection -State Established | Where-Object { $_.OwningProcess -in $pids -and $_.RemotePort -eq 21117 -and $_.RemoteAddress -in $addresses } | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,OwningProcess)
+            Write-E2EJson $connections "$evidence/relay-tcp-final.json"
+        } catch { }
+    }
     $result.observed_utc=[DateTime]::UtcNow.ToString('o')
     # The foreground receiver waiter must not overwrite its agent's evidence.
     if ($Phase -eq 'ReceiverAgent' -or $Role -eq 'sender' -or -not (Test-Path "$evidence/result.json")) {

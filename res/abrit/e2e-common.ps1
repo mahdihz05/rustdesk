@@ -78,6 +78,9 @@ public static class E2ENative {
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out Rect r);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref Point p);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    public static int MatchX, MatchY;
     public struct Rect { public int Left, Top, Right, Bottom; }
     public struct Point { public int X, Y; }
     public static IntPtr SessionWindow(string id) {
@@ -85,7 +88,7 @@ public static class E2ENative {
         EnumWindows((h,p) => {
             var b = new StringBuilder(512); GetWindowText(h,b,512);
             string t = b.ToString();
-            if (t.Contains(id) && t.IndexOf("AbritDesk", StringComparison.OrdinalIgnoreCase) >= 0) found = h;
+            if (t.Contains(id) && t.Contains("Remote Desktop") && t.IndexOf("AbritDesk", StringComparison.OrdinalIgnoreCase) >= 0) found = h;
             return true;
         }, IntPtr.Zero);
         return found;
@@ -99,6 +102,7 @@ public static class E2ENative {
             if(c.R<180 && c.G<180 && c.B<180) { ink++; if(ax<0) { ax=x; ay=y; } }
         }
         if(ink<40) throw new Exception("Display template has insufficient text contrast");
+        int allowedBad=Math.Max(12,ink/5);
         var anchor=template.GetPixel(ax,ay);
         for(int y=0;y<=screen.Height-template.Height;y++) for(int x=0;x<=screen.Width-template.Width;x++) {
             var candidate=screen.GetPixel(x+ax,y+ay);
@@ -108,11 +112,11 @@ public static class E2ENative {
                 for(int tx=0;tx<template.Width;tx+=2) {
                     var a=template.GetPixel(tx,ty); var b=screen.GetPixel(x+tx,y+ty); count++;
                     if(Math.Abs(a.R-b.R)+Math.Abs(a.G-b.G)+Math.Abs(a.B-b.B)>90) bad++;
-                    if(bad>12) break;
+                    if(bad>allowedBad) break;
                 }
-                if(bad>12) break;
+                if(bad>allowedBad) break;
             }
-            if(bad<=12 && count>100) return true;
+            if(bad<=allowedBad && count>100) { MatchX=x; MatchY=y; return true; }
         }
         return false;
     }

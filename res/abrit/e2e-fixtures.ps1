@@ -30,19 +30,19 @@ try {
     if ([Text.Encoding]::UTF8.GetString($sender.Decrypt($cipher,$true)) -cne $password) { throw 'Credential round trip failed.' }
     'PASS RSA public-only OAEP credential round trip'
 } finally { $sender.Dispose(); $receiver.Dispose() }
-$template = New-Object Drawing.Bitmap(120,24)
-$screen = New-Object Drawing.Bitmap(240,100)
+$template = New-Object Drawing.Bitmap(350,24)
+$screen = New-Object Drawing.Bitmap(500,100)
 $g=[Drawing.Graphics]::FromImage($template)
 $sg=[Drawing.Graphics]::FromImage($screen)
 try {
     $g.Clear([Drawing.Color]::White)
-    $g.DrawString('DISPLAY_a19c7',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,0,0)
+    $g.DrawString('DISPLAY_a19c71237eed44b9af228050e2123416',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,0,0)
     $sg.Clear([Drawing.Color]::White)
     if ([E2ENative]::ContainsTemplate($screen,$template)) { throw 'Blank screen falsely accepted.' }
     $sg.DrawImageUnscaled($template,37,29)
     if (-not [E2ENative]::ContainsTemplate($screen,$template)) { throw 'Visible template rejected.' }
     $sg.Clear([Drawing.Color]::White)
-    $sg.DrawString('WRONG_12345',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,37,29)
+    $sg.DrawString('DISPLAY_ff302abe16ad45c39985d3a5b876beef',[Drawing.SystemFonts]::DefaultFont,[Drawing.Brushes]::Black,37,29)
     if ([E2ENative]::ContainsTemplate($screen,$template)) { throw 'Wrong marker falsely accepted.' }
     'PASS display fixtures: blank and wrong text rejected; visible text accepted'
 } finally { $g.Dispose(); $sg.Dispose(); $template.Dispose(); $screen.Dispose() }
