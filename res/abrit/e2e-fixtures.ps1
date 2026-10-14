@@ -43,6 +43,11 @@ if ($workflow -match '(?m)^\s+needs:' -or $workflow -notmatch 'role: \[receiver,
     $workflow -notmatch 'timeout-minutes: 20' -or $workflow -match '\$\{\{\s*secrets\.') { throw 'Workflow topology/security fixture failed.' }
 if ($workflow -match '(?m)^\s+path:.*(?:private|abrit-e2e/\s*$)') { throw 'Broad/private artifact upload forbidden.' }
 'PASS workflow static fixtures: independent jobs, restricted evidence paths, no secrets'
+$source = Get-Content "$PSScriptRoot/e2e.ps1" -Raw
+if ($source -match '\.(computer) -ceq \$env:COMPUTERNAME' -or $source -notmatch 'Win32_ComputerSystemProduct' -or $source -notmatch '\$pub.machine_id -ceq \$machineId') {
+    throw 'Independent VM identity must not rely on cloned hostnames.'
+}
+'PASS VM identity fixture: hardware UUID, not hostname'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
     $rejected=$false
     try { Assert-E2ERunner } catch { $rejected=$true }

@@ -13,6 +13,8 @@ $installed = Join-Path $env:ProgramFiles 'AbritDesk/AbritDesk.exe'
 $attempt = "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
 $expectedDomain = 'serverdesk.abrit.cloud'
 $expectedKey = 'XDQrtTIvt+ISB6Zp8iqpjNpwmjRmkfpLHilOsBmrZHM='
+$machineId = (Get-CimInstance Win32_ComputerSystemProduct).UUID
+if (-not $machineId -or $machineId -eq '00000000-0000-0000-0000-000000000000') { throw 'VM hardware identity unavailable.' }
 
 if ($Phase -eq 'Initialize') {
     if (Test-Path -LiteralPath $root) { throw 'Test directory already exists.' }
@@ -20,7 +22,7 @@ if ($Phase -eq 'Initialize') {
     if ((Get-Service AbritDesk -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath (Split-Path $installed))) { throw 'Existing AbritDesk installation; refusing to modify it.' }
     if (-not (Test-Path -LiteralPath $exe)) { throw 'Expected complete native build bundle missing.' }
     Write-E2EJson ([ordered]@{
-        role=$Role; computer=$env:COMPUTERNAME; run=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
+        role=$Role; computer=$env:COMPUTERNAME; machine_id=$machineId; run=$env:GITHUB_RUN_ID; attempt=$env:GITHUB_RUN_ATTEMPT
         source_run=$env:E2E_BUILD_RUN; source_sha=$env:E2E_BUILD_SHA
         executable_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
         native_library_sha256=(Get-FileHash -LiteralPath (Join-Path (Split-Path $exe) 'librustdesk.dll') -Algorithm SHA256).Hash
@@ -31,7 +33,7 @@ if ($Phase -eq 'Initialize') {
         $rsa.PersistKeyInCsp = $false
         try {
             $rsa.ToXmlString($true) | Set-Content -LiteralPath "$private/key.xml"
-            Write-E2EJson @{ run=$attempt; public_key=$rsa.ToXmlString($false); input_marker="INPUT_$([Guid]::NewGuid().ToString('N'))"; computer=$env:COMPUTERNAME } "$root/public/public.json"
+            Write-E2EJson @{ run=$attempt; public_key=$rsa.ToXmlString($false); input_marker="INPUT_$([Guid]::NewGuid().ToString('N'))"; computer=$env:COMPUTERNAME; machine_id=$machineId } "$root/public/public.json"
         } finally { $rsa.Dispose() }
     }
     return
@@ -78,7 +80,7 @@ if ($Phase -eq 'Cleanup') {
 
 Initialize-E2ENative
 $result = [ordered]@{
-    role=$Role; computer=$env:COMPUTERNAME; run=$attempt
+    role=$Role; computer=$env:COMPUTERNAME; machine_id=$machineId; run=$attempt
     registration='NOT_RUN'; connection='NOT_PROVEN'; display='NOT_PROVEN'; input='NOT_PROVEN'
     forced_relay='NOT_PROVEN'; network_recovery='SKIP'; network_recovery_reason='No safe two-runner recovery orchestration in this acceptance.'
     status='FAIL'; stage='start'; observed_utc=[DateTime]::UtcNow.ToString('o')
@@ -88,7 +90,8 @@ try {
         $result.stage='wait_sender_public_key'
         Wait-E2EArtifact "e2e-public-key-$env:GITHUB_RUN_ATTEMPT" "$private/public-key"
         $pub = Get-Content "$private/public-key/public.json" -Raw | ConvertFrom-Json
-        if ($pub.run -cne $attempt -or $pub.computer -ceq $env:COMPUTERNAME -or $pub.input_marker -notmatch '^INPUT_[a-f0-9]{32}$') { throw 'Invalid sender control or not two independent machines.' }
+        # Hosted Windows images can share a hostname; compare VM hardware UUIDs.
+        if ($pub.run -cne $attempt -or -not $pub.machine_id -or $pub.machine_id -ceq $machineId -or $pub.input_marker -notmatch '^INPUT_[a-f0-9]{32}$') { throw 'Invalid sender control or not two independent machines.' }
         if ((Get-Service AbritDesk -ErrorAction SilentlyContinue) -or (Test-Path (Split-Path $installed))) { throw 'Receiver install preflight changed.' }
         $result.stage='receiver_native_install'
         'owned' | Set-Content "$private/install-owned"
@@ -136,7 +139,7 @@ try {
         $g = [Drawing.Graphics]::FromImage($bitmap)
         try { $g.CopyFromScreen($origin.X,($origin.Y+96),0,0,$bitmap.Size); $bitmap.Save("$control/display-template.png") }
         finally { $g.Dispose(); $bitmap.Dispose() }
-        Write-E2EJson @{ run=$attempt; id=$reg.id; password_ciphertext=$cipher; encryption='RSA-3072 OAEP-SHA1'; computer=$env:COMPUTERNAME; visual_marker=$visual } "$control/control.json"
+        Write-E2EJson @{ run=$attempt; id=$reg.id; password_ciphertext=$cipher; encryption='RSA-3072 OAEP-SHA1'; computer=$env:COMPUTERNAME; machine_id=$machineId; visual_marker=$visual } "$control/control.json"
         'ready' | Set-Content "$private/control-ready"
         $result.stage='receiver_observe_wm_gettext'
         $deadline = [DateTime]::UtcNow.AddMinutes(7)
@@ -165,7 +168,7 @@ try {
         $result.stage='wait_receiver_ciphertext'
         Wait-E2EArtifact "e2e-receiver-control-$env:GITHUB_RUN_ATTEMPT" "$private/receiver-control"
         $coord = Get-Content "$private/receiver-control/control.json" -Raw | ConvertFrom-Json
-        if ($coord.run -cne $attempt -or $coord.computer -ceq $env:COMPUTERNAME -or $coord.id -notmatch '^\d+$') { throw 'Invalid receiver coordination.' }
+        if ($coord.run -cne $attempt -or -not $coord.machine_id -or $coord.machine_id -ceq $machineId -or $coord.id -notmatch '^\d+$') { throw 'Invalid receiver coordination.' }
         $result.stage='sender_decrypt'
         $rsa = New-Object Security.Cryptography.RSACryptoServiceProvider
         $rsa.PersistKeyInCsp = $false
@@ -239,11 +242,13 @@ try {
         $result.stage='sender_wait_independent_input_proof'
         Wait-E2EArtifact "e2e-receiver-evidence-$env:GITHUB_RUN_ATTEMPT" "$private/receiver-evidence"
         $receiver = Get-Content "$private/receiver-evidence/result.json" -Raw | ConvertFrom-Json
-        if ($receiver.status -ne 'PASS' -or $receiver.input -ne 'PASS' -or $receiver.input_marker -cne $pub.input_marker -or $receiver.computer -cne $coord.computer) { throw 'Receiver did not independently confirm this input marker.' }
+        if ($receiver.status -ne 'PASS' -or $receiver.input -ne 'PASS' -or $receiver.input_marker -cne $pub.input_marker -or $receiver.machine_id -cne $coord.machine_id) { throw 'Receiver did not independently confirm this input marker.' }
         $result.input='PASS'; $result.status='PASS'; $result.stage='complete'
     }
 } catch {
     # Do not serialize exceptions/native logs: they can contain command credentials.
+    $result['failure_type']=$_.Exception.GetType().FullName
+    $result['failure_line']=$_.InvocationInfo.ScriptLineNumber
     $result['failure']='Acceptance failed; inspect sanitized stage fields. Private command output intentionally withheld.'
     throw 'Two-machine acceptance failed. See sanitized result.json; no credential-bearing output published.'
 } finally {
