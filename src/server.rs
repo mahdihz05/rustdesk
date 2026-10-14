@@ -644,11 +644,6 @@ pub async fn start_server(is_server: bool, no_server: bool) {
     });
 
     if is_server {
-        #[cfg(windows)]
-        if let Err(err) = crate::platform::windows::prepare_abrit_portable_host_id() {
-            log::error!("Failed to initialize portable host identity: {err}");
-            return;
-        }
         crate::common::set_server_running(true);
         std::thread::spawn(move || {
             if let Err(err) = crate::ipc::start("") {

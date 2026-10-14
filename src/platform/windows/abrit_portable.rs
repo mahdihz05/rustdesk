@@ -1,5 +1,5 @@
 use super::{abrit_identity, config, get_install_info, FLUTTER_RUNNER_WIN32_WINDOW_CLASS};
-use hbb_common::{anyhow::anyhow, sha2::{Digest, Sha256}, ResultType};
+use hbb_common::{anyhow::anyhow, rand::Rng, sha2::{Digest, Sha256}, ResultType};
 use std::sync::OnceLock;
 
 static RUNTIME_NAME: OnceLock<String> = OnceLock::new();
@@ -11,6 +11,10 @@ pub(super) fn initialize() -> ResultType<()> {
         RUNTIME_NAME.set(name).map_err(|_| anyhow!("Runtime identity already initialized"))?;
     }
     *config::APP_NAME.write().unwrap() = runtime_name().to_owned();
+    let command = std::env::args().nth(1).unwrap_or_default();
+    if is_private() && !matches!(command.as_str(), "--identity-json" | "--connection-status-json" | "--version" | "--build-date") {
+        prepare_private_profile()?;
+    }
     Ok(())
 }
 
@@ -44,7 +48,7 @@ fn select_runtime_name() -> ResultType<String> {
 
 fn portable_name(canonical_exe: &str) -> String {
     let hash = Sha256::digest(abrit_identity::runtime_path_key(canonical_exe).as_bytes());
-    format!("{}-Portable-{:x}", abrit_identity::APP_NAME, hash)
+    format!("{}-Portable-v2-{:x}", abrit_identity::APP_NAME, hash)
 }
 
 pub(super) fn is_private() -> bool {
@@ -55,25 +59,24 @@ pub(super) fn runtime_name() -> &'static str {
     RUNTIME_NAME.get().map(String::as_str).unwrap_or(abrit_identity::APP_NAME)
 }
 
-pub(super) fn prepare_host_id() -> ResultType<()> {
-    use std::{io::Write, os::windows::fs::OpenOptionsExt};
+fn prepare_private_profile() -> ResultType<()> {
+    use std::os::windows::fs::OpenOptionsExt;
 
-    if !is_private() {
-        return Ok(());
-    }
     let config_file = config::Config::file();
-    let marker = config_file.with_extension("portable-id");
-    std::fs::create_dir_all(marker.parent().ok_or_else(|| anyhow!("Missing portable configuration directory"))?)?;
-    let mut allocation = std::fs::OpenOptions::new()
-        .read(true).write(true).create(true).truncate(false).share_mode(0).open(marker)?;
+    std::fs::create_dir_all(config_file.parent().ok_or_else(|| anyhow!("Missing portable configuration directory"))?)?;
+    let _initialization = std::fs::OpenOptions::new().write(true).create(true)
+        .truncate(false).share_mode(0).open(config_file.with_extension("portable-lock"))?;
     // Config's default ID comes from the MAC address, so separate files alone
     // would still register this host under the installed application's ID.
-    // Hold an exclusive handle until allocation is durable, before starting IPC.
-    if allocation.metadata()?.len() == 0 || !config_file.try_exists()? {
-        config::Config::update_id();
-        config::Config::set_key_confirmed(false);
-        allocation.write_all(b"1")?;
-        allocation.sync_all()?;
+    // Seed and load it under the same lock in every process, before lazy Config
+    // initialization. Config accepts a plain public ID and encrypts it on load.
+    if !config_file.try_exists()? {
+        let mut seed = config::Config::default();
+        seed.id = hbb_common::rand::thread_rng().gen_range(1_000_000_000..2_000_000_000).to_string();
+        config::store_path(config_file, seed)?;
+    }
+    if matches!(config::Config::get_id().parse::<u64>(), Ok(id) if id <= 0x1FFF_FFFF) {
+        return Err(anyhow!("Invalid private portable identity; refusing a MAC-derived host ID"));
     }
     Ok(())
 }
@@ -107,7 +110,7 @@ mod tests {
         assert_ne!(name, portable_name(r"C:\Other\AbritDesk.exe"));
         assert_ne!(name, abrit_identity::APP_NAME);
         assert_ne!(name, "RustDesk");
-        assert_eq!(name.len(), "AbritDesk-Portable-".len() + 64);
-        assert!(name.strip_prefix("AbritDesk-Portable-").unwrap().bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert_eq!(name.len(), "AbritDesk-Portable-v2-".len() + 64);
+        assert!(name.strip_prefix("AbritDesk-Portable-v2-").unwrap().bytes().all(|byte| byte.is_ascii_hexdigit()));
     }
 }

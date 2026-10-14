@@ -170,6 +170,9 @@ try {
             $portableIdentity.tray_mutex -eq $identity.tray_mutex) {
             throw 'Portable runtime does not isolate IPC, configuration, window class and tray while preserving the visible identity.'
         }
+        if (Test-Path -LiteralPath $portableIdentity.config_file) {
+            throw 'A read-only identity query initialized the unused portable host profile.'
+        }
         Assert-LiveConnection $exe 'portable-coexistence' -Standalone
         $portableStatus = Get-Content -LiteralPath (Join-Path $outputPath 'portable-coexistence/Registration.json') -Raw | ConvertFrom-Json
         if ($portableStatus.id -ceq $installedStatus.id) {
