@@ -9,7 +9,11 @@ function Assert-E2ERunner {
 }
 
 function Write-E2EJson($Value, [string]$Path) {
-    ConvertTo-Json -InputObject $Value -Depth 8 | Set-Content -LiteralPath $Path -Encoding UTF8
+    ConvertTo-Json -InputObject $Value -Depth 8 | Set-Content -LiteralPath "$Path.tmp" -Encoding UTF8
+    for ($retry=0; $retry -lt 3; $retry++) {
+        try { Move-Item -LiteralPath "$Path.tmp" -Destination $Path -Force; return }
+        catch { if ($retry -eq 2) { throw }; Start-Sleep -Milliseconds 100 }
+    }
 }
 
 function Wait-E2EArtifact([string]$Name, [string]$Destination) {
@@ -30,29 +34,48 @@ function Wait-E2EArtifact([string]$Name, [string]$Destination) {
     throw "Timed out waiting for same-run artifact: $Name"
 }
 
-function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirectory, [switch]$AllowInstallerTermination) {
+function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirectory, [switch]$AllowInstallerTermination, [int]$TimeoutSeconds = 60) {
     $p = Start-Process -FilePath $Exe -ArgumentList $Arguments -WorkingDirectory (Split-Path $Exe) -PassThru -WindowStyle Hidden -RedirectStandardOutput "$PrivateDirectory/stdout" -RedirectStandardError "$PrivateDirectory/stderr"
     # PowerShell 5.1 loses ExitCode for redirected processes unless the handle is retained.
     $null = $p.Handle
-    if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'Native command timed out (arguments suppressed).' }
+    if (-not $p.WaitForExit($TimeoutSeconds * 1000)) { $p.Kill(); throw 'Native command timed out (arguments suppressed).' }
     # Commands can print credentials on failure. Never publish their output.
     if ($p.ExitCode -ne 0 -and -not $AllowInstallerTermination) { throw 'Native command failed (output suppressed).' }
+}
+
+function Get-E2ERegistrationSnapshot([string]$Exe, [string]$PrivateDirectory) {
+    Invoke-E2EApp $Exe '--connection-status-json' $PrivateDirectory -TimeoutSeconds 10
+    $snapshot = Get-Content "$PrivateDirectory/stdout" -Raw | ConvertFrom-Json
+    return [ordered]@{
+        ipc_ok=$snapshot.ipc_ok; latency=$snapshot.latency; key_confirmed=$snapshot.key_confirmed
+        id=$snapshot.id; server=$snapshot.server; relay=$snapshot.relay; key=$snapshot.key
+        error=$snapshot.error; phase='Registration'; observed_utc=[DateTime]::UtcNow.ToString('o')
+    }
+}
+
+function Test-E2ERegistration($Snapshot, [string]$Domain, [string]$Key) {
+    return ($Snapshot.ipc_ok -eq $true -and $Snapshot.latency -gt 0 -and $Snapshot.key_confirmed -eq $true -and
+        $Snapshot.id -match '^\d+$' -and $Snapshot.server -ceq $Domain -and $Snapshot.relay -ceq $Domain -and $Snapshot.key -ceq $Key)
+}
+
+function New-E2EConnectUri([string]$Id, [string]$Domain, [string]$Key, [string]$Password) {
+    return "abritdesk://connect/$Id/r@$($Domain)?key=$([Uri]::EscapeDataString($Key))&password=$([Uri]::EscapeDataString($Password))&relay=true"
+}
+
+function Start-E2EFileLoggedProcess([string]$Script, [string]$Arguments, [string]$PrivateDirectory) {
+    $command = '"{0}" -NoProfile -ExecutionPolicy Bypass -File "{1}" {2} > "{3}" 2> "{4}"' -f "$env:windir/System32/WindowsPowerShell/v1.0/powershell.exe",$Script,$Arguments,"$PrivateDirectory/agent.stdout","$PrivateDirectory/agent.stderr"
+    $p = Start-Process "$env:windir/System32/cmd.exe" -ArgumentList ('/d /s /c "' + $command + '"') -PassThru -WindowStyle Hidden
+    $null=$p.Handle
+    return $p
 }
 
 function Invoke-E2ERegistration([string]$Exe, [string]$PrivateDirectory, [string]$Output, [string]$Domain, [string]$Key) {
     New-Item -ItemType Directory -Path $Output -Force | Out-Null
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     while ([DateTime]::UtcNow -lt $deadline) {
-        Invoke-E2EApp $Exe '--connection-status-json' $PrivateDirectory
-        $snapshot = Get-Content "$PrivateDirectory/stdout" -Raw | ConvertFrom-Json
-        $safe = [ordered]@{
-            ipc_ok=$snapshot.ipc_ok; latency=$snapshot.latency; key_confirmed=$snapshot.key_confirmed
-            id=$snapshot.id; server=$snapshot.server; relay=$snapshot.relay; key=$snapshot.key
-            error=$snapshot.error; phase='Registration'; observed_utc=[DateTime]::UtcNow.ToString('o')
-        }
-        Write-E2EJson $safe "$Output/Registration.json"
-        if ($snapshot.ipc_ok -eq $true -and $snapshot.latency -gt 0 -and $snapshot.key_confirmed -eq $true -and
-            $snapshot.id -match '^\d+$' -and $snapshot.server -ceq $Domain -and $snapshot.relay -ceq $Domain -and $snapshot.key -ceq $Key) { return }
+        $snapshot = Get-E2ERegistrationSnapshot $Exe $PrivateDirectory
+        Write-E2EJson $snapshot "$Output/Registration.json"
+        if (Test-E2ERegistration $snapshot $Domain $Key) { return }
         Start-Sleep -Milliseconds 500
     }
     throw 'Live registration diagnostic did not confirm the expected ID/server/key/relay.'
@@ -72,6 +95,14 @@ public static class E2ENative {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr after, string cls, string title);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, StringBuilder b);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, string s);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern IntPtr SendMessageTimeout(IntPtr h, uint m, UIntPtr w, StringBuilder b, uint flags, uint timeout, out UIntPtr result);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+    public static string ReadEdit(IntPtr h) {
+        var text=new StringBuilder(4096); UIntPtr result;
+        if(!IsWindow(h) || SendMessageTimeout(h,0x000D,new UIntPtr(4096),text,2,1500,out result)==IntPtr.Zero)
+            throw new TimeoutException("Bounded receiver EDIT read failed");
+        return text.ToString();
+    }
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);

@@ -1,6 +1,18 @@
 # Safe local fixtures: no application launch, install, service mutation or desktop input.
+param([ValidateSet('Tests','LaunchChild','Child')][string]$Mode='Tests', [string]$FixtureDirectory)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. "$PSScriptRoot/e2e-common.ps1"
+if ($Mode -eq 'LaunchChild') {
+    $null=Start-E2EFileLoggedProcess $PSCommandPath "-Mode Child -FixtureDirectory `"$FixtureDirectory`"" $FixtureDirectory
+    exit 0
+}
+if ($Mode -eq 'Child') {
+    Start-Sleep -Seconds 2
+    'child-completed'
+    'done' | Set-Content "$FixtureDirectory/child-done"
+    exit 0
+}
 foreach ($file in (Get-ChildItem "$PSScriptRoot/e2e*.ps1")) {
     $tokens=$null; $errors=$null
     $null = [Management.Automation.Language.Parser]::ParseFile($file.FullName,[ref]$tokens,[ref]$errors)
@@ -19,8 +31,24 @@ try {
     Write-E2EJson @() "$fixtureRoot/empty.json"
     if (((Get-Content "$fixtureRoot/empty.json" -Raw) -replace '\s','') -cne '[]') { throw 'Empty endpoint evidence must serialize as an array.' }
     'PASS empty endpoint array serialization'
+    Invoke-E2EApp "$env:windir/System32/WindowsPowerShell/v1.0/powershell.exe" "-NoProfile -File `"$PSCommandPath`" -Mode LaunchChild -FixtureDirectory `"$fixtureRoot`"" $fixtureRoot
+    $deadline=[DateTime]::UtcNow.AddSeconds(10)
+    while (-not (Test-Path "$fixtureRoot/child-done") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    if (-not (Test-Path "$fixtureRoot/child-done") -or (Get-Content "$fixtureRoot/agent.stdout" -Raw) -notmatch 'child-completed') { throw 'CMD file-handle child did not survive parent PowerShell exit.' }
+    'PASS detached CMD file-handle fixture: child output survives parent exit'
 } finally { Remove-Item -LiteralPath $fixtureRoot -Recurse -Force }
 Initialize-E2ENative
+$start=[DateTime]::UtcNow
+$rejected=$false
+try { $null=[E2ENative]::ReadEdit([IntPtr]::Zero) } catch { $rejected=$true }
+if (-not $rejected -or ([DateTime]::UtcNow-$start).TotalSeconds -gt 3) { throw 'Invalid EDIT handle must fail within the bounded timeout.' }
+'PASS bounded EDIT-read fixture: invalid window rejected promptly'
+$fakeKey='XDQrtTIvt+ISB6Zp8iqpjNpwmjRmkfpLHilOsBmrZHM='
+$uri=[Uri](New-E2EConnectUri '123456789' 'serverdesk.abrit.cloud' $fakeKey 'fixture-password')
+$query=@{}
+foreach ($part in $uri.Query.TrimStart('?').Split('&')) { $kv=$part.Split('=',2); $query[$kv[0]]=[Uri]::UnescapeDataString($kv[1]) }
+if ($uri.AbsolutePath -cne '/123456789/r@serverdesk.abrit.cloud' -or $query.key -cne $fakeKey -or $query.password -cne 'fixture-password' -or $query.relay -cne 'true' -or @($uri.AbsoluteUri.ToCharArray() | Where-Object { $_ -eq '?' }).Count -ne 1) { throw 'Explicit URI query fixture failed.' }
+'PASS positional URI fixture: one query delimiter; trusted key and password round trip'
 $sender = New-Object Security.Cryptography.RSACryptoServiceProvider(3072)
 $receiver = New-Object Security.Cryptography.RSACryptoServiceProvider
 $sender.PersistKeyInCsp=$false; $receiver.PersistKeyInCsp=$false

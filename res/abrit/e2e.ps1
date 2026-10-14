@@ -27,6 +27,8 @@ if ($Phase -eq 'Initialize') {
         executable_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
         native_library_sha256=(Get-FileHash -LiteralPath (Join-Path (Split-Path $exe) 'librustdesk.dll') -Algorithm SHA256).Hash
         observed_utc=[DateTime]::UtcNow.ToString('o')
+        server_addresses=@([Net.Dns]::GetHostAddresses($expectedDomain) | ForEach-Object { $_.ToString() })
+        local_addresses=@(Get-NetIPAddress | Select-Object IPAddress,AddressFamily,InterfaceAlias)
     }) "$evidence/provenance.json"
     if ($Role -eq 'sender') {
         $rsa = New-Object Security.Cryptography.RSACryptoServiceProvider(3072)
@@ -40,9 +42,10 @@ if ($Phase -eq 'Initialize') {
 }
 
 if ($Phase -eq 'StartReceiver') {
-    # Start-Process, not Start-Job: the monitor must outlive this Actions step.
-    $p = Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Phase ReceiverAgent -Role receiver" -PassThru -WindowStyle Hidden -RedirectStandardOutput "$private/agent.stdout" -RedirectStandardError "$private/agent.stderr"
-    $p.Id | Set-Content "$private/agent.pid"
+    # CMD owns real log file handles. Parent PowerShell redirection uses managed
+    # pipes whose callbacks disappear when this Actions step exits.
+    $p = Start-E2EFileLoggedProcess $PSCommandPath '-Phase ReceiverAgent -Role receiver' $private
+    Write-E2EJson @{ pid=$p.Id; started_utc=$p.StartTime.ToUniversalTime().ToString('o') } "$private/cmd-owner.json"
     $deadline = [DateTime]::UtcNow.AddMinutes(11)
     while ([DateTime]::UtcNow -lt $deadline) {
         if (Test-Path "$private/control-ready") { return }
@@ -54,11 +57,20 @@ if ($Phase -eq 'StartReceiver') {
 
 if ($Phase -eq 'Cleanup') {
     if (-not (Test-Path $private)) { return }
+    if (Test-Path "$private/cmd-owner.json") {
+        $owner=Get-Content "$private/cmd-owner.json" -Raw | ConvertFrom-Json
+        $owned=Get-Process -Id $owner.pid -ErrorAction SilentlyContinue
+        if ($owned -and $owned.StartTime.ToUniversalTime().ToString('o') -ceq $owner.started_utc) {
+            & taskkill.exe /PID $owner.pid /T /F *> $null
+        }
+    }
     # Never infer ownership merely from an existing service. Marker predates install.
-    foreach ($pidFile in @('agent.pid','notepad.pid','ui.pid')) {
-        if (Test-Path "$private/$pidFile") {
+    foreach ($pidFile in @('notepad.pid','ui.pid')) {
+        if ((Test-Path "$private/$pidFile") -and (Test-Path "$private/$pidFile.started")) {
             $ownedPid = [int](Get-Content "$private/$pidFile" -Raw)
-            Stop-Process -Id $ownedPid -Force -ErrorAction SilentlyContinue
+            $owned=Get-Process -Id $ownedPid -ErrorAction SilentlyContinue
+            $started=(Get-Content "$private/$pidFile.started" -Raw).Trim()
+            if ($owned -and $owned.StartTime.ToUniversalTime().ToString('o') -ceq $started) { Stop-Process -Id $ownedPid -Force -ErrorAction SilentlyContinue }
         }
     }
     if (Test-Path "$private/install-owned") {
@@ -83,10 +95,12 @@ $result = [ordered]@{
     role=$Role; computer=$env:COMPUTERNAME; machine_id=$machineId; run=$attempt
     registration='NOT_RUN'; connection='NOT_PROVEN'; display='NOT_PROVEN'; input='NOT_PROVEN'
     forced_relay='NOT_PROVEN'; network_recovery='SKIP'; network_recovery_reason='No safe two-runner recovery orchestration in this acceptance.'
-    status='FAIL'; stage='start'; observed_utc=[DateTime]::UtcNow.ToString('o')
+    status='FAIL'; failure_class='HARNESSERROR'; stage='start'; observed_utc=[DateTime]::UtcNow.ToString('o')
 }
 try {
     if ($Phase -eq 'ReceiverAgent') {
+        $agentStarted=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+        Write-E2EJson @{ agent_pid=$PID; agent_started_utc=$agentStarted; observed_utc=[DateTime]::UtcNow.ToString('o'); stage='starting' } "$evidence/receiver-heartbeat.json"
         $result.stage='wait_sender_public_key'
         Wait-E2EArtifact "e2e-public-key-$env:GITHUB_RUN_ATTEMPT" "$private/public-key"
         $pub = Get-Content "$private/public-key/public.json" -Raw | ConvertFrom-Json
@@ -120,6 +134,7 @@ try {
         $result.stage='receiver_safe_screen'
         $notepad = Start-Process "$env:windir/System32/notepad.exe" -PassThru
         $notepad.Id | Set-Content "$private/notepad.pid"
+        $notepad.StartTime.ToUniversalTime().ToString('o') | Set-Content "$private/notepad.pid.started"
         $deadline = [DateTime]::UtcNow.AddSeconds(30)
         do { $notepad.Refresh(); $hwnd=$notepad.MainWindowHandle; Start-Sleep -Milliseconds 250 } while ($hwnd -eq 0 -and [DateTime]::UtcNow -lt $deadline)
         $edit = [E2ENative]::FindWindowEx($hwnd,[IntPtr]::Zero,'Edit',$null)
@@ -141,28 +156,83 @@ try {
         $g = [Drawing.Graphics]::FromImage($bitmap)
         try { $g.CopyFromScreen($origin.X,($origin.Y+96),0,0,$bitmap.Size); $bitmap.Save("$control/display-template.png") }
         finally { $g.Dispose(); $bitmap.Dispose() }
+        function Save-ReceiverHeartbeat {
+            $result['receiver_valid']=$false
+            $snapshot=Get-E2ERegistrationSnapshot $installed $private
+            $liveService=Get-CimInstance Win32_Service -Filter "Name='AbritDesk'"
+            $serviceAlive=$false
+            if ($liveService -and $liveService.State -eq 'Running' -and $liveService.ProcessId -gt 0) {
+                $serviceAlive=$null -ne (Get-Process -Id $liveService.ProcessId -ErrorAction SilentlyContinue)
+            }
+            $notepadAlive=-not $notepad.HasExited -and [E2ENative]::IsWindow($edit)
+            $valid=(Test-E2ERegistration $snapshot $expectedDomain $expectedKey) -and $snapshot.id -ceq $reg.id -and $serviceAlive -and $notepadAlive
+            $heartbeat=[ordered]@{
+                run=$attempt; machine_id=$machineId; agent_pid=$PID; agent_started_utc=$agentStarted
+                observed_utc=[DateTime]::UtcNow.ToString('o'); stage=$result.stage; receiver_valid=$valid
+                registration=$snapshot; service_alive=$serviceAlive
+                service_pid=if($liveService){$liveService.ProcessId}else{0}
+                service_state=if($liveService){$liveService.State}else{'Absent'}
+                notepad_alive=$notepadAlive
+            }
+            Write-E2EJson $heartbeat "$evidence/receiver-heartbeat.json"
+            ConvertTo-Json -InputObject $heartbeat -Depth 8 -Compress | Add-Content "$evidence/receiver-samples.jsonl" -Encoding UTF8
+            $result.receiver_valid=$valid
+            if (-not $valid) { throw 'Receiver readiness lost: service, registration identity or EDIT unavailable.' }
+        }
+        Save-ReceiverHeartbeat
+        Write-E2EJson (Get-Content "$evidence/receiver-heartbeat.json" -Raw | ConvertFrom-Json) "$control/registration-before-connect.json"
         Write-E2EJson @{ run=$attempt; id=$reg.id; password_ciphertext=$cipher; encryption='RSA-3072 OAEP-SHA1'; computer=$env:COMPUTERNAME; machine_id=$machineId; visual_marker=$visual } "$control/control.json"
         'ready' | Set-Content "$private/control-ready"
         $result.stage='receiver_observe_wm_gettext'
         $deadline = [DateTime]::UtcNow.AddMinutes(7)
+        $nextHeartbeat=[DateTime]::UtcNow
         while ([DateTime]::UtcNow -lt $deadline) {
-            $text = New-Object Text.StringBuilder(4096)
-            $null = [E2ENative]::SendMessage($edit,0x000D,[IntPtr]4096,$text)
-            if ($text.ToString().Contains($pub.input_marker)) {
+            if ([DateTime]::UtcNow -ge $nextHeartbeat) { Save-ReceiverHeartbeat; $nextHeartbeat=[DateTime]::UtcNow.AddSeconds(10) }
+            $text = [E2ENative]::ReadEdit($edit)
+            if ($text.Contains($pub.input_marker)) {
+                Save-ReceiverHeartbeat
                 $result.connection='PASS'; $result.input='PASS'; $result.status='PASS'
+                $result.failure_class='NONE'
                 $result['input_marker']=$pub.input_marker; $result['visual_marker']=$visual
-                $result['wm_gettext']=$text.ToString(); $result['sender_computer']=$pub.computer
+                $result['wm_gettext']=$text; $result['sender_computer']=$pub.computer
                 Save-E2EScreen "$evidence/receiver-notepad.png" $hwnd
                 break
             }
             Start-Sleep -Milliseconds 500
         }
-        if ($result.status -ne 'PASS') { throw 'Receiver did not observe remote marker via WM_GETTEXT.' }
+        if ($result.status -ne 'PASS') {
+            Save-ReceiverHeartbeat
+            $result.failure_class='ACCEPTANCE_NOT_PROVEN'
+            $result['failure_reason']='REMOTE_INPUT_NOT_OBSERVED'
+            throw 'Receiver did not observe remote marker via bounded WM_GETTEXT.'
+        }
         $result.stage='complete_receiver_observation'
     } elseif ($Role -eq 'receiver') {
+        $result.stage='receiver_cross_step_liveness'
         $deadline = [DateTime]::UtcNow.AddMinutes(8)
-        while (-not (Test-Path "$private/agent-done") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Seconds 2 }
-        if (-not (Test-Path "$private/agent-done")) { throw 'Receiver monitor did not finish.' }
+        $waiter=[ordered]@{ check_count=0; alive_check_count=0; cross_step_agent_alive=$false; failure_reason=$null }
+        while (-not (Test-Path "$private/agent-done") -and [DateTime]::UtcNow -lt $deadline) {
+            $heartbeat=Get-Content "$evidence/receiver-heartbeat.json" -Raw | ConvertFrom-Json
+            $agent=Get-Process -Id $heartbeat.agent_pid -ErrorAction SilentlyContinue
+            $alive=$agent -and $agent.StartTime.ToUniversalTime().ToString('o') -ceq $heartbeat.agent_started_utc
+            $age=([DateTime]::UtcNow-[DateTime]::Parse($heartbeat.observed_utc).ToUniversalTime()).TotalSeconds
+            $waiter.check_count++
+            if ($alive) { $waiter.alive_check_count++; $waiter.cross_step_agent_alive=$true }
+            $waiter['agent_alive_now']=[bool]$alive
+            $waiter['agent_pid']=$heartbeat.agent_pid; $waiter['agent_started_utc']=$heartbeat.agent_started_utc
+            $waiter['heartbeat_age_seconds']=$age; $waiter['observed_utc']=[DateTime]::UtcNow.ToString('o')
+            if (-not $alive) { $waiter.failure_reason='AGENT_EXITED_WITHOUT_COMPLETION' }
+            elseif ($age -gt 35) { $waiter.failure_reason='AGENT_HEARTBEAT_STALE' }
+            Write-E2EJson $waiter "$evidence/receiver-waiter.json"
+            if ($waiter.failure_reason) {
+                Start-Sleep -Seconds 2
+                if (-not (Test-Path "$private/agent-done")) { $result['failure_reason']=$waiter.failure_reason; throw 'Receiver agent liveness invalid.' }
+                $waiter.failure_reason=$null
+                Write-E2EJson $waiter "$evidence/receiver-waiter.json"
+            }
+            Start-Sleep -Seconds 2
+        }
+        if (-not (Test-Path "$private/agent-done")) { $result['failure_reason']='AGENT_COMPLETION_TIMEOUT'; throw 'Receiver monitor did not finish.' }
         $agentResult = Get-Content "$evidence/result.json" -Raw | ConvertFrom-Json
         if ($agentResult.status -ne 'PASS') { throw 'Receiver observation failed.' }
         return
@@ -193,18 +263,31 @@ try {
         # A new peer file on this disposable sender only; server/key defaults stay untouched.
         $peers = Join-Path $env:APPDATA 'AbritDesk/config/peers'
         New-Item -ItemType Directory -Path $peers -Force | Out-Null
-        $target = "$($coord.id)/r@$expectedDomain"
-        $peerFile = Join-Path $peers "$($coord.id)@$expectedDomain.toml"
+        $target = "$($coord.id)/r"
+        $peerId=$coord.id
+        if ($env:E2E_ROUTING -eq 'ExplicitUri') { $target="$($coord.id)/r@$expectedDomain"; $peerId="$($coord.id)@$expectedDomain" }
+        $peerFile = Join-Path $peers "$peerId.toml"
         if (Test-Path $peerFile) { throw 'Receiver peer config already exists; refusing overwrite.' }
-        # Explicit-server IDs take their trusted key from this peer option. Never
-        # send a keyless request or relax key checking to bypass routing failure.
-        "view_style = 'original'`nimage_quality = 'best'`n[options]`nother-server-key = '$expectedKey'" | Set-Content -LiteralPath $peerFile -Encoding ASCII
-        $result['routing']='explicit_expected_server'
-        $result['default_id_routing']='NOT_PROVEN; prior default ID/r attempt returned ID does not exist'
+        "view_style = 'original'`nimage_quality = 'best'" | Set-Content -LiteralPath $peerFile -Encoding ASCII
+        $beforeConnect=Get-Content "$private/receiver-control/registration-before-connect.json" -Raw | ConvertFrom-Json
+        if (-not $beforeConnect.receiver_valid -or $beforeConnect.registration.id -cne $coord.id -or $beforeConnect.machine_id -cne $coord.machine_id) { throw 'Invalid receiver readiness snapshot.' }
+        Write-E2EJson $beforeConnect "$evidence/receiver-before-connect.json"
+        $result['routing']='default_id'; $result['connect_argument']=$target
+        $arguments="--connect $target --password $password"
+        if ($env:E2E_ROUTING -eq 'ExplicitUri') {
+            # Flutter handleUriLink parses this positional URI directly. Do not
+            # feed a ?key ID to --connect, whose core URI builder adds another ?.
+            $uri=New-E2EConnectUri $coord.id $expectedDomain $expectedKey $password
+            $arguments='"' + $uri + '"'
+            $result.routing='explicit_trusted_key_positional_uri'
+            $result['default_id_routing']='NOT_TESTED_IN_THIS_RUN'
+        }
         $result.stage='sender_connect_and_display'
-        $ui = Start-Process $installed -ArgumentList "--connect $target --password $password" -PassThru -RedirectStandardOutput "$private/ui.stdout" -RedirectStandardError "$private/ui.stderr"
+        $ui = Start-Process $installed -ArgumentList $arguments -PassThru -RedirectStandardOutput "$private/ui.stdout" -RedirectStandardError "$private/ui.stderr"
         $ui.Id | Set-Content "$private/ui.pid"
-        $password=$null
+        $null=$ui.Handle
+        $ui.StartTime.ToUniversalTime().ToString('o') | Set-Content "$private/ui.pid.started"
+        $password=$null; $arguments=$null; $uri=$null
         $template = New-Object Drawing.Bitmap("$private/receiver-control/display-template.png")
         $deadline = [DateTime]::UtcNow.AddMinutes(4)
         $session = [IntPtr]::Zero
@@ -230,7 +313,17 @@ try {
                 Start-Sleep -Seconds 3
             }
         } finally { $template.Dispose() }
-        if ($result.display -ne 'PASS') { throw 'Remote text pixels not observed at native scale in the sender session window.' }
+        if ($result.display -ne 'PASS') {
+            $result.stage='sender_validate_receiver_after_display_failure'
+            Wait-E2EArtifact "e2e-receiver-evidence-$env:GITHUB_RUN_ATTEMPT" "$private/receiver-evidence"
+            $receiver=Get-Content "$private/receiver-evidence/result.json" -Raw | ConvertFrom-Json
+            $waiter=Get-Content "$private/receiver-evidence/receiver-waiter.json" -Raw | ConvertFrom-Json
+            $hasValidity=$null -ne $receiver.PSObject.Properties['receiver_valid']
+            $result['receiver_valid']=$hasValidity -and $receiver.receiver_valid -eq $true -and $receiver.machine_id -ceq $coord.machine_id -and $waiter.cross_step_agent_alive -and -not $waiter.failure_reason -and $waiter.alive_check_count -gt 3
+            if ($result.receiver_valid) { $result.failure_class='ACCEPTANCE_NOT_PROVEN'; $result['failure_reason']='REMOTE_DISPLAY_NOT_OBSERVED_WITH_LIVE_RECEIVER' }
+            else { $result['failure_reason']='RECEIVER_LIVENESS_OR_READINESS_INVALID' }
+            throw 'Remote display acceptance failed; receiver validity recorded separately.'
+        }
         Copy-Item "$private/sender-screen.png" "$evidence/sender-display.png"
         $result.connection='PASS'
         $result['receiver_computer']=$coord.computer; $result['receiver_id']=$coord.id
@@ -261,8 +354,10 @@ try {
         $result.stage='sender_wait_independent_input_proof'
         Wait-E2EArtifact "e2e-receiver-evidence-$env:GITHUB_RUN_ATTEMPT" "$private/receiver-evidence"
         $receiver = Get-Content "$private/receiver-evidence/result.json" -Raw | ConvertFrom-Json
-        if ($receiver.status -ne 'PASS' -or $receiver.input -ne 'PASS' -or $receiver.input_marker -cne $pub.input_marker -or $receiver.machine_id -cne $coord.machine_id) { throw 'Receiver did not independently confirm this input marker.' }
-        $result.input='PASS'; $result.status='PASS'; $result.stage='complete'
+        $waiter=Get-Content "$private/receiver-evidence/receiver-waiter.json" -Raw | ConvertFrom-Json
+        $receiverCleanup=Get-Content "$private/receiver-evidence/cleanup.json" -Raw | ConvertFrom-Json
+        if ($receiver.status -ne 'PASS' -or $receiver.receiver_valid -ne $true -or $receiver.input -ne 'PASS' -or $receiver.input_marker -cne $pub.input_marker -or $receiver.machine_id -cne $coord.machine_id -or $waiter.alive_check_count -lt 1 -or $waiter.failure_reason -or $receiverCleanup.status -ne 'PASS') { throw 'Receiver did not independently confirm valid input, lifetime and cleanup.' }
+        $result.input='PASS'; $result.status='PASS'; $result.failure_class='NONE'; $result.stage='complete'
     }
 } catch {
     # Do not serialize exceptions/native logs: they can contain command credentials.

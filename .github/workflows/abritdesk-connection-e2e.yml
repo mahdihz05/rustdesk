@@ -2,6 +2,12 @@ name: AbritDesk Two-Machine Connection E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      routing:
+        description: 'Default ID/r acceptance or explicit trusted-key URI diagnostic'
+        type: choice
+        options: [Default, ExplicitUri]
+        default: Default
   push:
     branches: [fix/abritdesk-1.0.0-connection]
     paths:
@@ -16,6 +22,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   E2E_BUILD_RUN: '38449754633'
   E2E_BUILD_SHA: '13f49231730377ca1c76d46340e936fcea1f7ec1'
+  E2E_ROUTING: ${{ inputs.routing || 'Default' }}
 
 jobs:
   desktop:
