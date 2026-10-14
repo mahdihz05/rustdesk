@@ -101,6 +101,10 @@ jobs:
           ./res/abrit/test_windows_identity.ps1 -Executable existing-build/AbritDesk.exe -Output windows-acceptance -LiveConnection -Installer SignOutput/abritdesk-1.0.0-x86_64.msi -Portable SignOutput/abritdesk-1.0.0-x86_64.exe
           Get-FileHash SignOutput/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content windows-acceptance/SHA256SUMS.txt
           "Acceptance PASS for binary source $env:BUILD_SHA. Source build conclusion is recorded independently. Public remote desktop E2E is NOT accepted." | Add-Content $env:GITHUB_STEP_SUMMARY
+          # Publication is a separate authorized GH CLI operation after this run is green.
+          # GITHUB_TOKEN cannot create this historical-source release (HTTP 403).
+          [ordered]@{ acceptance='PASS'; binary_source_sha=$env:BUILD_SHA; source_run=$env:BUILD_RUN; acceptance_run=$env:GITHUB_RUN_ID; release_tag=$env:RELEASE_TAG; publication='pending separate authorized GH CLI'; public_desktop_e2e='NOT ACCEPTED' } |
+            ConvertTo-Json | Set-Content windows-acceptance/release-candidate.json
       - name: Upload acceptance evidence always
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -109,10 +113,3 @@ jobs:
           path: windows-acceptance/
           if-no-files-found: warn
           retention-days: 14
-      - name: Publish new experimental release only after acceptance PASS
-        run: |
-          $refs = gh api "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:RELEASE_TAG" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or @($refs | Where-Object { $_.ref -ceq "refs/tags/$env:RELEASE_TAG" }).Count) { throw 'Tag unavailable; refusing publication' }
-          $notes = "Experimental unsigned Windows x64 preview. Binary source: $env:BUILD_SHA; compiled source run: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN (overall failure in old acceptance harness, required build/MSI/widget steps verified successful). New acceptance PASS: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID. Validated packaging, private/installed distinct IDs, password readiness, restart stability, native GUI class, and stock RustDesk preservation. Public remote desktop E2E is NOT accepted: public endpoint inconsistency remains unresolved. Supersedes preview.2 shared-ID behavior. No native rebuild."
-          gh release create $env:RELEASE_TAG SignOutput/abritdesk-1.0.0-x86_64.exe SignOutput/abritdesk-1.0.0-x86_64.msi windows-acceptance/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:BUILD_SHA --prerelease --latest=false --title "AbritDesk 1.0.0 connection preview" --notes $notes
-          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; never retry by overwriting assets' }
