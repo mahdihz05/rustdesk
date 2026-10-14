@@ -171,6 +171,10 @@ try {
             throw 'Portable runtime does not isolate IPC, configuration, window class and tray while preserving the visible identity.'
         }
         Assert-LiveConnection $exe 'portable-coexistence' -Standalone
+        $portableStatus = Get-Content -LiteralPath (Join-Path $outputPath 'portable-coexistence/Registration.json') -Raw | ConvertFrom-Json
+        if ($portableStatus.id -ceq $installedStatus.id) {
+            throw 'Separate portable and installed runtimes must not register the same MAC-derived ID.'
+        }
         Assert-LiveConnection $exe 'portable-coexistence-restart' -Standalone -Baseline (Join-Path $outputPath 'portable-coexistence/Registration.json')
         $installedAfter = Invoke-App $installedExe '--connection-status-json' 'installed-after-coexistence' | ConvertFrom-Json
         if ($installedAfter.ipc_ok -ne $true -or $installedAfter.id -cne $installedStatus.id -or

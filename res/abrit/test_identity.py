@@ -16,6 +16,16 @@ SPEC.loader.exec_module(MSI)
 
 
 class IdentityTests(unittest.TestCase):
+    def test_private_host_identity_is_allocated_before_ipc_registration(self):
+        server = (ROOT / "src/server.rs").read_text(encoding="utf-8")
+        startup = server.split("pub async fn start_server(is_server: bool, no_server: bool)", 1)[1]
+        self.assertLess(startup.index("prepare_abrit_portable_host_id()"), startup.index('crate::ipc::start("")'))
+        runtime = (ROOT / "src/platform/windows/abrit_portable.rs").read_text(encoding="utf-8")
+        allocation = runtime.split("pub(super) fn prepare_host_id()", 1)[1].split("pub(super) fn window_class()", 1)[0]
+        self.assertLess(allocation.index("if !is_private()"), allocation.index("config::Config::update_id()"))
+        self.assertIn("share_mode(0)", allocation)
+        self.assertIn("config::Config::set_key_confirmed(false)", allocation)
+
     def test_signed_installation_policy_precedes_portable_namespace_selection(self):
         native = (ROOT / "src/platform/windows.rs").read_text(encoding="utf-8")
         initialization = native.split("pub fn initialize_abrit_identity()", 1)[1].split("pub fn abrit_app_name()", 1)[0]

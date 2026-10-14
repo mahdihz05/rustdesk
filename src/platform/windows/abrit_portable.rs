@@ -55,6 +55,29 @@ pub(super) fn runtime_name() -> &'static str {
     RUNTIME_NAME.get().map(String::as_str).unwrap_or(abrit_identity::APP_NAME)
 }
 
+pub(super) fn prepare_host_id() -> ResultType<()> {
+    use std::{io::Write, os::windows::fs::OpenOptionsExt};
+
+    if !is_private() {
+        return Ok(());
+    }
+    let config_file = config::Config::file();
+    let marker = config_file.with_extension("portable-id");
+    std::fs::create_dir_all(marker.parent().ok_or_else(|| anyhow!("Missing portable configuration directory"))?)?;
+    let mut allocation = std::fs::OpenOptions::new()
+        .read(true).write(true).create(true).truncate(false).share_mode(0).open(marker)?;
+    // Config's default ID comes from the MAC address, so separate files alone
+    // would still register this host under the installed application's ID.
+    // Hold an exclusive handle until allocation is durable, before starting IPC.
+    if allocation.metadata()?.len() == 0 || !config_file.try_exists()? {
+        config::Config::update_id();
+        config::Config::set_key_confirmed(false);
+        allocation.write_all(b"1")?;
+        allocation.sync_all()?;
+    }
+    Ok(())
+}
+
 pub(super) fn window_class() -> &'static str {
     if !is_private() {
         return FLUTTER_RUNNER_WIN32_WINDOW_CLASS;

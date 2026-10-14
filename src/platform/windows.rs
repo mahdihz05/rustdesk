@@ -140,6 +140,10 @@ pub fn abrit_runtime_window_class() -> &'static str {
     abrit_portable::window_class()
 }
 
+pub fn prepare_abrit_portable_host_id() -> ResultType<()> {
+    abrit_portable::prepare_host_id()
+}
+
 pub fn abrit_identity_snapshot() -> serde_json::Value {
     let (_, path, _, exe) = get_install_info();
     serde_json::json!({
