@@ -30,11 +30,11 @@ function Wait-E2EArtifact([string]$Name, [string]$Destination) {
     throw "Timed out waiting for same-run artifact: $Name"
 }
 
-function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirectory) {
+function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirectory, [switch]$AllowInstallerTermination) {
     $p = Start-Process -FilePath $Exe -ArgumentList $Arguments -WorkingDirectory (Split-Path $Exe) -PassThru -WindowStyle Hidden -RedirectStandardOutput "$PrivateDirectory/stdout" -RedirectStandardError "$PrivateDirectory/stderr"
     if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'Native command timed out (arguments suppressed).' }
     # Commands can print credentials on failure. Never publish their output.
-    if ($p.ExitCode -ne 0) { throw 'Native command failed (output suppressed).' }
+    if ($p.ExitCode -ne 0 -and -not $AllowInstallerTermination) { throw 'Native command failed (output suppressed).' }
 }
 
 function Initialize-E2ENative {

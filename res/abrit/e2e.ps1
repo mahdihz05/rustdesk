@@ -95,7 +95,9 @@ try {
         if ((Get-Service AbritDesk -ErrorAction SilentlyContinue) -or (Test-Path (Split-Path $installed))) { throw 'Receiver install preflight changed.' }
         $result.stage='receiver_native_install'
         'owned' | Set-Content "$private/install-owned"
-        Invoke-E2EApp $exe '--silent-install printer=0' $private
+        # The installer terminates AbritDesk processes, including its caller.
+        # Validate the resulting service/path and live registration instead.
+        Invoke-E2EApp $exe '--silent-install printer=0' $private -AllowInstallerTermination
         $service = Get-CimInstance Win32_Service -Filter "Name='AbritDesk'"
         if (-not $service -or $service.PathName -ine ('"' + $installed + '" --service') -or $service.StartName -ne 'LocalSystem') { throw 'Native installation identity mismatch.' }
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
@@ -183,7 +185,7 @@ try {
         if ((Get-Service AbritDesk -ErrorAction SilentlyContinue) -or (Test-Path (Split-Path $installed))) { throw 'Sender install preflight changed.' }
         $result.stage='sender_native_install'
         'owned' | Set-Content "$private/install-owned"
-        Invoke-E2EApp $exe '--silent-install printer=0' $private
+        Invoke-E2EApp $exe '--silent-install printer=0' $private -AllowInstallerTermination
         (Get-Service AbritDesk).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
         $result.stage='sender_registration'
         & "$PSScriptRoot/test_connection_windows.ps1" -Executable $installed -Output "$evidence/registration" -ExpectedDomain $expectedDomain -ExpectedKey $expectedKey
