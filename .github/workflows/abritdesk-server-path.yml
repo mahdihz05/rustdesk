@@ -1,0 +1,43 @@
+name: AbritDesk Public Rendezvous Consistency
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/abritdesk-1.0.0-connection]
+    paths:
+      - 'res/abrit/probe_public_rendezvous.py'
+      - '.github/workflows/abritdesk-server-path.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  public-route:
+    name: Public route ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install diagnostic-only dependency
+        run: python -m pip install --disable-pip-version-check cryptography==44.0.3
+      - name: Offline codec fixtures (not network evidence)
+        run: python res/abrit/probe_public_rendezvous_test.py
+      - name: Probe public network consistency (not E2E)
+        run: python res/abrit/probe_public_rendezvous.py --output public-rendezvous.json
+      - name: Upload sanitized observations and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rendezvous-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: public-rendezvous.json
+          if-no-files-found: error
+          retention-days: 14
