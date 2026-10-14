@@ -44,7 +44,17 @@ jobs:
         shell: powershell
         run: |
           $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:E2E_BUILD_RUN" | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $env:E2E_BUILD_SHA -or $run.conclusion -ne 'success') { throw 'Source build provenance mismatch' }
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -cne $env:E2E_BUILD_SHA -or $run.status -ne 'completed') { throw 'Source build provenance mismatch' }
+          # A corrected acceptance harness can validate an already-compiled run.
+          # Require its actual binary/package/layout steps, not an unrelated aggregate result.
+          $jobs = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:E2E_BUILD_RUN/jobs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Source job provenance unavailable' }
+          $native = @($jobs.jobs | Where-Object { $_.name -ceq 'run-flutter-tag-build / x86_64-pc-windows-msvc' })
+          if ($native.Count -ne 1) { throw 'Expected one Windows x64 source job' }
+          foreach ($name in @('Build rustdesk', 'Build self-extracted executable', 'Build msi', 'Test Windows responsive layouts and window sizing')) {
+            $step = @($native[0].steps | Where-Object { $_.name -ceq $name })
+            if ($step.Count -ne 1 -or $step[0].conclusion -ne 'success') { throw "Required source step failed: $name" }
+          }
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: rustdesk-unsigned-windows-x86_64
