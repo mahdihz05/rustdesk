@@ -46,15 +46,19 @@ function Invoke-E2EApp([string]$Exe, [string]$Arguments, [string]$PrivateDirecto
 function Get-E2ERegistrationSnapshot([string]$Exe, [string]$PrivateDirectory) {
     Invoke-E2EApp $Exe '--connection-status-json' $PrivateDirectory -TimeoutSeconds 10
     $snapshot = Get-Content "$PrivateDirectory/stdout" -Raw | ConvertFrom-Json
+    if (-not $snapshot.PSObject.Properties['temporary_password_ready']) {
+        throw 'Selected build does not expose password readiness; use the current Windows build.'
+    }
     return [ordered]@{
         ipc_ok=$snapshot.ipc_ok; latency=$snapshot.latency; key_confirmed=$snapshot.key_confirmed
         id=$snapshot.id; server=$snapshot.server; relay=$snapshot.relay; key=$snapshot.key
+        temporary_password_ready=$snapshot.temporary_password_ready
         error=$snapshot.error; phase='Registration'; observed_utc=[DateTime]::UtcNow.ToString('o')
     }
 }
 
 function Test-E2ERegistration($Snapshot, [string]$Domain, [string]$Key) {
-    return ($Snapshot.ipc_ok -eq $true -and $Snapshot.latency -gt 0 -and $Snapshot.key_confirmed -eq $true -and
+    return ($Snapshot.ipc_ok -eq $true -and $Snapshot.temporary_password_ready -eq $true -and $Snapshot.latency -gt 0 -and $Snapshot.key_confirmed -eq $true -and
         $Snapshot.id -match '^\d+$' -and $Snapshot.server -ceq $Domain -and $Snapshot.relay -ceq $Domain -and $Snapshot.key -ceq $Key)
 }
 

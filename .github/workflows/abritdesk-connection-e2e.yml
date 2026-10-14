@@ -3,16 +3,19 @@ name: AbritDesk Two-Machine Connection E2E
 on:
   workflow_dispatch:
     inputs:
+      build-run:
+        description: 'Successful Windows x64 build run to test'
+        type: string
+        required: true
+      build-sha:
+        description: 'Exact source SHA of that Windows build'
+        type: string
+        required: true
       routing:
         description: 'Default ID/r acceptance or explicit trusted-key URI diagnostic'
         type: choice
         options: [Default, ExplicitUri]
         default: Default
-  push:
-    branches: [fix/abritdesk-1.0.0-connection]
-    paths:
-      - '.github/workflows/abritdesk-connection-e2e.yml'
-      - 'res/abrit/e2e*.ps1'
 
 permissions:
   contents: read
@@ -20,8 +23,8 @@ permissions:
 
 env:
   GH_TOKEN: ${{ github.token }}
-  E2E_BUILD_RUN: '38449754633'
-  E2E_BUILD_SHA: '13f49231730377ca1c76d46340e936fcea1f7ec1'
+  E2E_BUILD_RUN: ${{ inputs.build-run }}
+  E2E_BUILD_SHA: ${{ inputs.build-sha }}
   E2E_ROUTING: ${{ inputs.routing || 'Default' }}
 
 jobs:
@@ -46,7 +49,7 @@ jobs:
         with:
           name: rustdesk-unsigned-windows-x86_64
           path: existing-build
-          run-id: '38449754633'
+          run-id: ${{ inputs.build-run }}
           github-token: ${{ github.token }}
       - name: Initialize isolated runner
         shell: powershell

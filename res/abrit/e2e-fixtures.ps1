@@ -20,6 +20,11 @@ foreach ($file in (Get-ChildItem "$PSScriptRoot/e2e*.ps1")) {
     "PASS syntax: $($file.Name)"
 }
 . "$PSScriptRoot/e2e-common.ps1"
+$ready = @{ ipc_ok=$true; latency=1; key_confirmed=$true; temporary_password_ready=$true; id='123456789'; server='server.example'; relay='server.example'; key='test-public-key' }
+if (-not (Test-E2ERegistration $ready 'server.example' 'test-public-key')) { throw 'Ready registration fixture rejected.' }
+$ready.temporary_password_ready=$false
+if (Test-E2ERegistration $ready 'server.example' 'test-public-key') { throw 'Missing temporary password falsely accepted.' }
+'PASS password-readiness fixture (not live connection evidence)'
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "opencode/e2e-fixture-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
 try {
