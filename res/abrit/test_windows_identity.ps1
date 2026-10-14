@@ -107,7 +107,11 @@ function Stop-OwnedSourceProcesses {
     if ($exe -ieq $installedExe) { throw 'Source process cleanup must not target the installed executable.' }
     # Only this test's source binary can have left codec/tray children on this fresh runner.
     foreach ($process in (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath -ieq $exe })) {
-        Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+        try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop }
+        catch {
+            # GUI shutdown can finish a child between enumeration and termination.
+            if (Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue) { throw }
+        }
     }
 }
 
