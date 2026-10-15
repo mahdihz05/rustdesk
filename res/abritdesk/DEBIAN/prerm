@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        if [ -d /run/systemd/system ]; then
+            systemctl stop abritdesk.service || true
+            systemctl disable abritdesk.service || true
+        fi
+        ;;
+    upgrade)
+        if [ -d /run/systemd/system ]; then
+            systemctl stop abritdesk.service || true
+        fi
+        ;;
+esac

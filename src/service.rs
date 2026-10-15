@@ -5,6 +5,7 @@ fn main() {}
 
 #[cfg(target_os = "macos")]
 fn main() {
+    crate::common::initialize_product_identity();
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "--write-plists" {
         if let Err(e) = librustdesk::platform::write_plists() {

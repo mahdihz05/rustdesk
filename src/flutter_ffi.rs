@@ -39,6 +39,10 @@ lazy_static::lazy_static! {
 }
 
 fn initialize(app_dir: &str, custom_client_config: &str) {
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        let _ = crate::common::global_init();
+    }
     flutter::async_tasks::start_flutter_async_runner();
     // `APP_DIR` is set in `main_get_data_dir_ios()` on iOS.
     #[cfg(not(target_os = "ios"))]
@@ -72,10 +76,6 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         use hbb_common::env_logger::*;
         init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "debug"));
         crate::common::test_nat_type();
-    }
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        let _ = crate::common::global_init();
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -2113,6 +2113,8 @@ pub fn main_set_home_dir(_home: String) {
 
 // This is a temporary method to get data dir for ios
 pub fn main_get_data_dir_ios(app_dir: String) -> SyncReturn<String> {
+    #[cfg(target_os = "ios")]
+    let _ = crate::common::global_init();
     *config::APP_DIR.write().unwrap() = app_dir;
     let data_dir = config::Config::path("data");
     if !data_dir.exists() {

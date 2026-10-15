@@ -3,6 +3,10 @@ name: Flutter Tag Build
 on:
   workflow_dispatch:
     inputs:
+      release-packages:
+        description: 'Build AbritDesk preview packages for Windows x64, macOS, Linux and Android'
+        type: boolean
+        default: false
       windows-x64-only:
         description: 'Build only Windows x64 and its required helpers'
         type: boolean
@@ -26,13 +30,18 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   run-flutter-tag-build:
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
+      release-packages: ${{ inputs.release-packages == true }}
       upload-artifact: true
       upload-tag: ${{ inputs.release-tag || github.ref_name }}
-      macos-only: ${{ inputs.macos-only == true }}
-      windows-x64-only: ${{ inputs.windows-x64-only == true }}
-      android-universal-from-run: ${{ inputs.android-universal-from-run || '' }}
+      macos-only: ${{ !inputs.release-packages && inputs.macos-only == true }}
+      windows-x64-only: ${{ !inputs.release-packages && inputs.windows-x64-only == true }}
+      android-universal-from-run: ${{ !inputs.release-packages && inputs.android-universal-from-run || '' }}

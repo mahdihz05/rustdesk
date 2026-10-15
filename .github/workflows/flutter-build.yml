@@ -3,6 +3,9 @@ name: Build the flutter version of the RustDesk
 on:
   workflow_call:
     inputs:
+      release-packages:
+        type: boolean
+        default: false
       upload-artifact:
         type: boolean
         default: true
@@ -25,6 +28,10 @@ on:
 # It does NOT read build steps, however, so please fix 'flutter/build_fdroid.sh
 # whenever you add changes to Android CI build action ('build-rustdesk-android')
 # in this file!
+
+permissions:
+  contents: write
+  actions: read
 
 env:
   SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
@@ -66,7 +73,7 @@ env:
 
 jobs:
   generate-sbom:
-    if: ${{ !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -98,7 +105,7 @@ jobs:
     if: ${{ !inputs.android-universal-from-run }}
     uses: ./.github/workflows/bridge.yml
     with:
-      legacy-only: ${{ inputs.macos-only || inputs.windows-x64-only }}
+      legacy-only: ${{ inputs.release-packages || inputs.macos-only || inputs.windows-x64-only }}
 
   build-RustDeskTempTopMostWindow:
     if: ${{ !inputs.macos-only && !inputs.android-universal-from-run }}
@@ -106,7 +113,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows-x64-only: ${{ fromJSON(inputs.windows-x64-only && '[true]' || '[false]') }}
+        windows-x64-only: ${{ fromJSON((inputs.release-packages || inputs.windows-x64-only) && '[true]' || '[false]') }}
         exclude:
           - windows-x64-only: true
             job: { target: windows-11-arm, platform: ARM64 }
@@ -134,7 +141,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        windows-x64-only: ${{ fromJSON(inputs.windows-x64-only && '[true]' || '[false]') }}
+        windows-x64-only: ${{ fromJSON((inputs.release-packages || inputs.windows-x64-only) && '[true]' || '[false]') }}
         exclude:
           - windows-x64-only: true
             job:
@@ -474,7 +481,7 @@ jobs:
         # Building the arm64 template on the native arm64 runner makes the ARM
         # package available: the build agents are x64 and cannot run
         # preprocess.py against an ARM exe.
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && inputs.upload-artifact }}
         run: |
           git checkout -- res/msi
           cp -r ./rustdesk ./rustdesk-msi-template
@@ -498,7 +505,7 @@ jobs:
           rm -r -fo ./rustdesk-msi-template
 
       - name: Upload unsigned msi template
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && inputs.upload-artifact }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-msi-template-${{ matrix.job.arch }}
@@ -512,11 +519,12 @@ jobs:
 
       - name: Publish Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && inputs.upload-artifact }}
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
-          target_commitish: ${{ inputs.windows-x64-only && github.sha || '' }}
+          target_commitish: ${{ (inputs.release-packages || inputs.windows-x64-only) && github.sha || '' }}
+          fail_on_unmatched_files: true
           files: |
             ./SignOutput/abritdesk-*.msi
             ./SignOutput/abritdesk-*.exe
@@ -529,11 +537,11 @@ jobs:
           path: |
             SignOutput/abritdesk-${{ env.VERSION }}-x86_64.exe
             SignOutput/abritdesk-${{ env.VERSION }}-x86_64.msi
-          if-no-files-found: warn
+          if-no-files-found: error
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
-    if: ${{ !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     runs-on: ${{ matrix.job.os }}
     # Temporarily disable this action due to additional test is needed.
@@ -694,7 +702,7 @@ jobs:
             ./SignOutput/abritdesk-*.exe
 
   build-rustdesk-ios:
-    if: ${{ inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     name: build rustdesk ios ipa
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -827,6 +835,8 @@ jobs:
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
+    env:
+      DMG_NAME: abritdesk-1.0.0-macos-${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86_64' }}.dmg
     strategy:
       fail-fast: false
       matrix:
@@ -860,7 +870,7 @@ jobs:
           submodules: recursive
 
       - name: Import the codesign cert
-        if: env.MACOS_P12_BASE64 != null
+        if: env.MACOS_P12_BASE64 != ''
         uses: apple-actions/import-codesign-certs@253ddeeac23f2bdad1646faac5c8c2832e800071 # v1
         with:
           p12-file-base64: ${{ secrets.MACOS_P12_BASE64 }}
@@ -868,13 +878,13 @@ jobs:
           keychain: rustdesk
 
       - name: Check sign and import sign key
-        if: env.MACOS_P12_BASE64 != null
+        if: env.MACOS_P12_BASE64 != ''
         run: |
           security default-keychain -s rustdesk.keychain
           security find-identity -v
 
       - name: Import notarize key
-        if: env.MACOS_P12_BASE64 != null
+        if: env.MACOS_P12_BASE64 != ''
         uses: timheuer/base64-to-file@adaa40c0c581f276132199d4cf60afa07ce60eac # v1.2
         with:
           # https://gregoryszorc.com/docs/apple-codesign/stable/apple_codesign_rcodesign.html#notarizing-and-stapling
@@ -883,7 +893,7 @@ jobs:
           encodedString: ${{ secrets.MACOS_NOTARIZE_JSON }}
 
       - name: Install rcodesign tool
-        if: env.MACOS_P12_BASE64 != null
+        if: env.MACOS_P12_BASE64 != ''
         shell: bash
         run: |
           pushd /tmp
@@ -895,6 +905,10 @@ jobs:
       - name: Install build runtime
         run: |
           brew install llvm create-dmg
+          # build.py creates the first DMG, so patch retries before any packaging.
+          CREATE_DMG="$(command -v create-dmg)"
+          CREATE_DMG="$(readlink -f "$CREATE_DMG")"
+          sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
           # pkg-config is handled in a separate step, because it may be already installed by `macos-latest`(14.7.1) runner
           if command -v pkg-config &>/dev/null; then
               echo "pkg-config is already installed"
@@ -1017,58 +1031,65 @@ jobs:
           fi
           ./build.py --flutter --hwcodec --unix-file-copy-paste ${{ matrix.job.extra-build-args }}
 
-      - name: create unsigned dmg
+      - name: Preserve unsigned preview DMG
         if: env.UPLOAD_ARTIFACT == 'true'
         run: |
-          CREATE_DMG="$(command -v create-dmg)"
-          CREATE_DMG="$(readlink -f "$CREATE_DMG")"
-          sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
+          test -s "$DMG_NAME"
+          if [ -z "$MACOS_P12_BASE64" ]; then
+            mv "$DMG_NAME" "${DMG_NAME%.dmg}-unsigned-preview.dmg"
+            echo 'macOS preview is unsigned and not notarized; Gatekeeper may block installation.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload unsigned macOS app
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-unsigned-macos-${{ matrix.job.arch }}
-          path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.dmg # can not upload the directory directly or tar.gz, which destroy the link structure, causing the codesign failed
+          path: abritdesk-${{ env.VERSION }}-macos-${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86_64' }}*.dmg
+          if-no-files-found: error
 
       - name: Codesign app and create signed dmg
-        if: env.MACOS_P12_BASE64 != null && env.UPLOAD_ARTIFACT == 'true'
+        if: env.MACOS_P12_BASE64 != '' && env.UPLOAD_ARTIFACT == 'true'
         run: |
-          # Patch create-dmg to give more attempts to unmount image
-          CREATE_DMG="$(command -v create-dmg)"
-          CREATE_DMG="$(readlink -f "$CREATE_DMG")"
-          sed -i -e 's/MAXIMUM_UNMOUNTING_ATTEMPTS=3/MAXIMUM_UNMOUNTING_ATTEMPTS=7/' "$CREATE_DMG"
           # Unlock keychain
           security default-keychain -s rustdesk.keychain
           security unlock-keychain -p ${{ secrets.MACOS_P12_PASSWORD }} rustdesk.keychain
-          # start sign the rustdesk.app and dmg
+          # Replace the unsigned image after signing the bundle.
           rm -rf *.dmg || true
           # the identity secret carries its own shell quoting, so expand it inline like the dmg codesign below
           bash ./.github/scripts/sign-macos-app.sh \
-            ./flutter/build/macos/Build/Products/Release/RustDesk.app \
+            ./flutter/build/macos/Build/Products/Release/AbritDesk.app \
             ${{ secrets.MACOS_CODESIGN_IDENTITY }} \
             ./flutter/macos/Runner/Release.entitlements
-          create-dmg --icon "RustDesk.app" 200 190 --hide-extension "RustDesk.app" --window-size 800 400 --app-drop-link 600 185 rustdesk-${{ env.VERSION }}.dmg ./flutter/build/macos/Build/Products/Release/RustDesk.app
-          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict rustdesk-${{ env.VERSION }}.dmg -vvv
-          # notarize the rustdesk-${{ env.VERSION }}.dmg
-          rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json  --staple rustdesk-${{ env.VERSION }}.dmg
+          create-dmg --icon "AbritDesk.app" 200 190 --hide-extension "AbritDesk.app" --window-size 800 400 --app-drop-link 600 185 "$DMG_NAME" ./flutter/build/macos/Build/Products/Release/AbritDesk.app
+          codesign --force --options runtime -s ${{ secrets.MACOS_CODESIGN_IDENTITY }} --deep --strict "$DMG_NAME" -vvv
+          rcodesign notary-submit --api-key-path ${{ github.workspace }}/rustdesk.json --staple "$DMG_NAME"
 
-      - name: Rename rustdesk
-        if: env.UPLOAD_ARTIFACT == 'true'
+      - name: Validate and upload final macOS preview
+        if: inputs.upload-artifact
         run: |
-          for name in rustdesk*??.dmg; do
-              mv "$name" "${name%%.dmg}-${{ matrix.job.arch }}.dmg"
-          done
+          image="$DMG_NAME"
+          if [ -z "$MACOS_P12_BASE64" ]; then image="${image%.dmg}-unsigned-preview.dmg"; fi
+          hdiutil verify "$image"
+
+      - name: Upload final macOS DMG
+        if: inputs.upload-artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-${{ env.VERSION }}-macos-${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86_64' }}
+          path: abritdesk-${{ env.VERSION }}-macos-${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86_64' }}*.dmg
+          if-no-files-found: error
 
       - name: Publish DMG package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && inputs.upload-artifact }}
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ inputs.release-packages && github.sha || '' }}
+          fail_on_unmatched_files: true
           files: |
-            rustdesk*-${{ matrix.job.arch }}.dmg
+            abritdesk-${{ env.VERSION }}-macos-${{ matrix.job.arch == 'aarch64' && 'arm64' || 'x86_64' }}*.dmg
 
   publish_unsigned:
     needs:
@@ -1076,7 +1097,7 @@ jobs:
       - build-for-windows-flutter
       - build-for-windows-sciter
     runs-on: ubuntu-latest
-    if: ${{ inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1238,6 +1259,13 @@ jobs:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
+      - name: Export pinned Android NDK
+        env:
+          NDK_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> "$GITHUB_ENV"
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -1325,11 +1353,15 @@ jobs:
         with:
           name: librustdesk.so.${{ matrix.job.target }}
           path: ./target/${{ matrix.job.target }}/release/liblibrustdesk.so
+          if-no-files-found: error
 
       - name: Build rustdesk
         shell: bash
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        if: ${{ !inputs.release-packages }}
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           # Increase Gradle JVM memory for CI builds
@@ -1375,12 +1407,19 @@ jobs:
             ;;
           esac
           popd
-          mkdir -p signed-apk; pushd signed-apk
-          mv ../rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk .
+          mkdir -p signed-apk
+          label='${{ matrix.job.arch }}${{ matrix.job.suffix }}'
+          if [ -z "$ANDROID_SIGNING_KEY" ]; then
+            label="${label}-debug-signed-TEST"
+            echo 'Android TEST APK is debug-signed, not unsigned or production-signed; future previews may require uninstalling it.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          mv rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk "signed-apk/abritdesk-${VERSION}-${label}.apk"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "signed-apk/abritdesk-${VERSION}-${label}.apk" | grep -x 'ir.abrit.abritdesk'
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
         shell: bash
+        if: ${{ !inputs.release-packages }}
         run: |
           BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
@@ -1388,7 +1427,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@349ebdef58775b1e0d8099458af0816dc79b6407 # v1
         name: Sign app APK
-        if: env.ANDROID_SIGNING_KEY != null
+        if: ${{ !inputs.release-packages && env.ANDROID_SIGNING_KEY != '' }}
         id: sign-rustdesk
         with:
           releaseDirectory: ./signed-apk
@@ -1401,29 +1440,40 @@ jobs:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
       - name: Upload Artifacts
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && env.ANDROID_SIGNING_KEY != '' && inputs.upload-artifact }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+          name: abritdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
           path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+          if-no-files-found: error
 
       - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ !inputs.release-packages && env.ANDROID_SIGNING_KEY != '' && inputs.upload-artifact }}
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
+          fail_on_unmatched_files: true
           files: |
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
-      - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+      - name: Upload debug-signed TEST APK
+        if: ${{ !inputs.release-packages && env.ANDROID_SIGNING_KEY == '' && inputs.upload-artifact }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-debug-signed-TEST.apk
+          path: signed-apk/abritdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}-debug-signed-TEST.apk
+          if-no-files-found: error
+
+      - name: Publish debug-signed TEST APK
+        if: ${{ !inputs.release-packages && env.ANDROID_SIGNING_KEY == '' && inputs.upload-artifact }}
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
+          fail_on_unmatched_files: true
           files: |
-            signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+            signed-apk/abritdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}-debug-signed-TEST.apk
 
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
@@ -1505,6 +1555,19 @@ jobs:
             git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
+      - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Export pinned Android NDK
+        env:
+          NDK_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> "$GITHUB_ENV"
+
       - name: Restore bridge files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -1550,6 +1613,8 @@ jobs:
         shell: bash
         env:
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
           # Increase Gradle JVM memory for CI builds
@@ -1592,7 +1657,7 @@ jobs:
 
       - uses: r0adkll/sign-android-release@349ebdef58775b1e0d8099458af0816dc79b6407 # v1
         name: Sign app APK
-        if: env.ANDROID_SIGNING_KEY != null
+        if: env.ANDROID_SIGNING_KEY != ''
         id: sign-rustdesk
         with:
           releaseDirectory: ./signed-apk
@@ -1604,36 +1669,57 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
-      - name: Upload Artifacts
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
-          path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+      - name: Validate and name final universal APK
+        id: final-apk
+        env:
+          SIGNED_APK: ${{ steps.sign-rustdesk.outputs.signedReleaseFile }}
+        run: |
+          source="$SIGNED_APK"
+          label=universal
+          if [ -z "$ANDROID_SIGNING_KEY" ]; then
+            source="signed-apk/rustdesk-${VERSION}-universal${suffix}.apk"
+            label=universal-debug-signed-TEST
+            echo 'Android TEST APK uses an ephemeral debug signing key, not a production key. It is not unsigned and future previews may require uninstalling it.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          mkdir -p final-apk
+          destination="final-apk/abritdesk-${VERSION}-${label}.apk"
+          cp "$source" "$destination"
+          "$ANDROID_HOME/build-tools/$ANDROID_SIGN_TOOL_VERSION/apksigner" verify "$destination"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$destination" | grep -x 'ir.abrit.abritdesk'
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-name "$destination")" = "$VERSION"
+          test "$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest min-sdk "$destination")" = 22
+          unzip -l "$destination"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            unzip -l "$destination" "lib/$abi/librustdesk.so" | grep -F "lib/$abi/librustdesk.so"
+          done
+          echo "path=$destination" >> "$GITHUB_OUTPUT"
 
-      - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+      - name: Upload final universal APK
+        if: inputs.upload-artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-${{ env.VERSION }}-android-universal
+          path: ${{ steps.final-apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish universal APK
+        if: ${{ !inputs.release-packages && inputs.upload-artifact }}
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ inputs.release-packages && github.sha || '' }}
+          fail_on_unmatched_files: true
           files: |
-            ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
-
-      - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        with:
-          prerelease: true
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
-            signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+            ${{ steps.final-apk.outputs.path }}
 
   build-rustdesk-linux:
     if: ${{ !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     needs: [generate-bridge]
     name: build rustdesk linux ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.on }}
+    outputs:
+      abrit-package: ${{ steps.deb.outputs.abrit }}
     strategy:
       fail-fast: false
       matrix:
@@ -1897,6 +1983,14 @@ jobs:
             export CARGO_INCREMENTAL=0
             export DEB_ARCH=${{ matrix.job.deb_arch }}
             python3 ./build.py --flutter --skip-cargo
+            # AbritDesk's renamed bundle cannot use stock RustDesk RPM/Arch recipes.
+            if [ -f "abritdesk-${{ env.VERSION }}-linux-${{ matrix.job.deb_arch == 'amd64' && 'x64' || 'arm64' }}.deb" ]; then
+              exit 0
+            fi
+            if [ "${{ inputs.release-packages }}" = true ]; then
+              echo '::error::Expected AbritDesk DEB was not produced'
+              exit 1
+            fi
             for name in rustdesk*??.deb; do
               mv "$name" "${name%%.deb}-${{ matrix.job.arch }}.deb"
             done
@@ -1929,8 +2023,28 @@ jobs:
                 mv "$name" /workspace/"${name%%.rpm}-suse.rpm"
             done
 
+      - name: Validate AbritDesk DEB
+        id: deb
+        run: |
+          deb="abritdesk-${VERSION}-linux-${{ matrix.job.deb_arch == 'amd64' && 'x64' || 'arm64' }}.deb"
+          if [ -f "$deb" ] || [ "${{ inputs.release-packages }}" = true ]; then
+            python3 .github/scripts/validate-abritdesk-deb.py "$deb" "$VERSION" '${{ matrix.job.deb_arch }}'
+            echo "abrit=true" >> "$GITHUB_OUTPUT"
+            echo "path=$deb" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish AbritDesk DEB
+        if: inputs.upload-artifact && !inputs.release-packages && steps.deb.outputs.abrit == 'true'
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        with:
+          prerelease: true
+          tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ inputs.release-packages && github.sha || '' }}
+          fail_on_unmatched_files: true
+          files: ${{ steps.deb.outputs.path }}
+
       - name: Publish debian/rpm package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: inputs.upload-artifact && steps.deb.outputs.abrit != 'true' && !inputs.release-packages
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1938,19 +2052,21 @@ jobs:
           files: |
             rustdesk-*.deb
             rustdesk-*.rpm
+          fail_on_unmatched_files: true
 
       - name: Upload deb
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: env.UPLOAD_ARTIFACT == 'true'
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
-          path: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.deb
+          name: ${{ steps.deb.outputs.path || format('rustdesk-{0}-{1}.deb', env.VERSION, matrix.job.arch) }}
+          path: ${{ steps.deb.outputs.path || format('rustdesk-{0}-{1}.deb', env.VERSION, matrix.job.arch) }}
+          if-no-files-found: error
 
       # only x86_64 for arch since we can not find newest arm64 docker image to build
       # old arch image does not make sense for arch since it is "arch" which always update to date
       # and failed to makepkg arm64 on x86_64
       - name: Patch archlinux PKGBUILD
-        if: matrix.job.arch == 'x86_64' && env.UPLOAD_ARTIFACT == 'true'
+        if: matrix.job.arch == 'x86_64' && inputs.upload-artifact && !inputs.release-packages && steps.deb.outputs.abrit != 'true'
         run: |
           sed -i "s/x86_64/${{ matrix.job.arch }}/g" res/PKGBUILD
           if [[ "${{ matrix.job.arch }}" == "aarch64" ]]; then
@@ -1958,7 +2074,7 @@ jobs:
           fi
 
       - name: Build archlinux package
-        if: matrix.job.arch == 'x86_64' && env.UPLOAD_ARTIFACT == 'true'
+        if: matrix.job.arch == 'x86_64' && inputs.upload-artifact && !inputs.release-packages && steps.deb.outputs.abrit != 'true'
         uses: rustdesk-org/arch-makepkg-action@04200739ed1d0bf6f2188b6736b26a767c57a7f9 # no release tag; commit 2026-05-26
         with:
           packages:
@@ -1966,7 +2082,7 @@ jobs:
             cd res && HBB=`pwd`/.. FLUTTER=1 makepkg -f
 
       - name: Publish archlinux package
-        if: matrix.job.arch == 'x86_64' && env.UPLOAD_ARTIFACT == 'true'
+        if: matrix.job.arch == 'x86_64' && inputs.upload-artifact && !inputs.release-packages && steps.deb.outputs.abrit != 'true'
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1980,7 +2096,8 @@ jobs:
   # old for it. A separate job rather than a matrix entry of build-rustdesk-linux: appimage and
   # flatpak need that job, and a failure here must not skip them.
   build-rustdesk-linux-drm:
-    if: ${{ !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    # AbritDesk renamed the Flutter binary; DRM still requires unsupported stock RustDesk paths.
+    if: false
     needs: [generate-bridge]
     name: build rustdesk linux drm x86_64
     runs-on: ubuntu-22.04
@@ -2283,7 +2400,7 @@ jobs:
           path: ${{ env.DRM_DEB }}
 
   build-rustdesk-linux-sciter:
-    if: ${{ inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     runs-on: ${{ matrix.job.on }}
     name: build-rustdesk-linux-sciter ${{ matrix.job.target }}
     strategy:
@@ -2528,7 +2645,7 @@ jobs:
     name: Build appimage ${{ matrix.job.target }}
     needs: [build-rustdesk-linux]
     runs-on: ubuntu-22.04
-    if: ${{ inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && needs.build-rustdesk-linux.outputs.abrit-package != 'true' && inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     strategy:
       fail-fast: false
       matrix:
@@ -2581,7 +2698,7 @@ jobs:
       - build-rustdesk-linux
       - build-rustdesk-linux-sciter
     runs-on: ${{ matrix.job.on }}
-    if: ${{ inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
+    if: ${{ !inputs.release-packages && needs.build-rustdesk-linux.outputs.abrit-package != 'true' && inputs.upload-artifact && !inputs.windows-x64-only && !inputs.macos-only && !inputs.android-universal-from-run }}
     strategy:
       fail-fast: false
       matrix:
@@ -2659,6 +2776,103 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           files: |
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
+
+  accept-release-packages:
+    name: Accept and publish complete AbritDesk preview
+    needs: [build-for-windows-flutter, build-for-macOS, build-rustdesk-linux, build-rustdesk-android-universal]
+    if: ${{ always() && !cancelled() && inputs.release-packages && inputs.upload-artifact }}
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: abritdesk-preview-publication-${{ inputs.upload-tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Require every platform acceptance job to succeed
+        env:
+          PLATFORM_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['PLATFORM_RESULTS'])
+          failed = {name: job['result'] for name, job in results.items() if job['result'] != 'success'}
+          if failed:
+              raise SystemExit(f'Release not published: platform jobs did not succeed: {failed}')
+          PY
+
+      - name: Download accepted Windows packages from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-windows-x64-packages-${{ env.VERSION }}
+          path: release-packages
+
+      - name: Download accepted macOS x86_64 package from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-${{ env.VERSION }}-macos-x86_64
+          path: release-packages
+
+      - name: Download accepted macOS arm64 package from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-${{ env.VERSION }}-macos-arm64
+          path: release-packages
+
+      - name: Download accepted Linux x64 package from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-${{ env.VERSION }}-linux-x64.deb
+          path: release-packages
+
+      - name: Download accepted Linux arm64 package from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-${{ env.VERSION }}-linux-arm64.deb
+          path: release-packages
+
+      - name: Download accepted Android universal package from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: abritdesk-${{ env.VERSION }}-android-universal
+          path: release-packages
+
+      - name: Validate exact seven-package set and generate provenance/checksums
+        env:
+          WINDOWS_SIGNED: ${{ env.SIGN_BASE_URL != '-2' }}
+          MACOS_SIGNED: ${{ env.MACOS_P12_BASE64 != '' }}
+          ANDROID_SIGNED: ${{ env.ANDROID_SIGNING_KEY != '' }}
+        run: |
+          python3 .github/scripts/validate-abritdesk-release.py release-packages
+          cat release-metadata/release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload aggregate acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: abritdesk-${{ env.VERSION }}-release-acceptance
+          path: release-metadata/
+          if-no-files-found: error
+
+      - name: Stage complete preview as a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Refuse an existing release rather than silently replacing another run's assets.
+          gh release create "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --draft --prerelease --title "AbritDesk $VERSION Preview (publication in progress)" \
+            --notes-file release-metadata/release-notes.md \
+            release-packages/* release-metadata/SHA256SUMS release-metadata/release-manifest.json
+
+      - name: Verify uploaded draft assets before making the preview public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --dir release-verification
+          test "$(find release-verification -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 9
+          cmp release-metadata/SHA256SUMS release-verification/SHA256SUMS
+          cmp release-metadata/release-manifest.json release-verification/release-manifest.json
+          (cd release-verification && sha256sum --check SHA256SUMS)
+          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft=false \
+            --title "AbritDesk $VERSION Preview"
 
   build-rustdesk-web:
     if: False

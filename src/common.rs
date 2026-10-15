@@ -123,7 +123,14 @@ impl Drop for SimpleCallOnReturn {
     }
 }
 
+#[cfg(not(windows))]
+pub fn initialize_product_identity() {
+    *config::APP_NAME.write().unwrap() = "AbritDesk".to_owned();
+}
+
 pub fn global_init() -> bool {
+    #[cfg(not(windows))]
+    initialize_product_identity();
     #[cfg(windows)]
     if !crate::platform::windows::initialize_abrit_identity() {
         return false;
@@ -1087,6 +1094,10 @@ pub fn is_rustdesk() -> bool {
 
 #[inline]
 pub fn get_uri_prefix() -> String {
+    // Keep the registered compatibility scheme independent of non-Windows branding.
+    #[cfg(not(windows))]
+    return "rustdesk://".to_owned();
+    #[cfg(windows)]
     format!("{}://", get_app_name().to_lowercase())
 }
 
@@ -2442,14 +2453,8 @@ pub fn read_custom_client(config: &str) {
         return;
     };
 
-    if let Some(app_name) = data.remove("app-name") {
-        #[cfg(not(windows))]
-        if let Some(app_name) = app_name.as_str() {
-            *config::APP_NAME.write().unwrap() = app_name.to_owned();
-        }
-        #[cfg(windows)]
-        let _ = app_name;
-    }
+    // Product identity is fixed; signed settings must not redirect config/IPC paths.
+    let _ = data.remove("app-name");
 
     let mut map_display_settings = HashMap::new();
     for s in keys::KEYS_DISPLAY_SETTINGS {

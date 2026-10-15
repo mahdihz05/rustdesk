@@ -13,6 +13,7 @@ import re
 import subprocess
 import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 # Captured at import, while cwd is still the repo root: before Python 3.9 the main script's __file__
@@ -31,7 +32,8 @@ if windows:
 elif osx:
     flutter_build_dir = 'build/macos/Build/Products/Release/'
 else:
-    flutter_build_dir = 'build/linux/x64/release/bundle/'
+    linux_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x64'
+    flutter_build_dir = f'build/linux/{linux_arch}/release/bundle/'
 flutter_build_dir_2 = f'flutter/{flutter_build_dir}'
 skip_cargo = False
 
@@ -734,7 +736,66 @@ def retarget_control_to_drm_variant():
         f.write(body)
 
 
+def build_abrit_deb(version, binary_folder):
+    arch = os.environ.get('DEB_ARCH') or (
+        'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'amd64')
+    if arch not in ('amd64', 'arm64'):
+        raise ValueError('AbritDesk DEBs support only DEB_ARCH=amd64 or arm64')
+    bundle = Path(binary_folder).resolve()
+    if not (bundle / 'abritdesk').is_file() or not (bundle / 'lib/librustdesk.so').is_file():
+        raise ValueError('Expected a Flutter bundle containing abritdesk and lib/librustdesk.so')
+    if list(bundle.glob('libdrmtap.so*')) or list((bundle / 'lib').glob('libdrmtap.so*')):
+        raise ValueError('AbritDesk packaging does not support the stock-path DRM variant')
+    if _carries_drmtap_marker(str(bundle / 'lib/librustdesk.so')):
+        raise ValueError('AbritDesk packaging requires a non-DRM core (DRM uses stock RustDesk paths)')
+    resources = Path(REPO_ROOT) / 'res/abritdesk'
+    label = 'x64' if arch == 'amd64' else 'arm64'
+    output = Path(REPO_ROOT) / f'abritdesk-{version}-linux-{label}.deb'
+    with tempfile.TemporaryDirectory(prefix='abritdesk-deb-') as temporary:
+        stage = Path(temporary)
+        stage.chmod(0o755)
+        app = stage / 'usr/share/abritdesk'
+        shutil.copytree(str(bundle), str(app), symlinks=True)
+        (app / 'abritdesk').chmod(0o755)
+        for source, destination in (
+            (resources / 'abritdesk.service', app / 'files/systemd/abritdesk.service'),
+            (resources / 'abritdesk.service', stage / 'usr/lib/systemd/system/abritdesk.service'),
+            (resources / 'abritdesk.desktop', stage / 'usr/share/applications/abritdesk.desktop'),
+            (Path(REPO_ROOT) / 'res/128x128@2x.png', stage / 'usr/share/icons/hicolor/256x256/apps/abritdesk.png'),
+            (Path(REPO_ROOT) / 'res/scalable.svg', stage / 'usr/share/icons/hicolor/scalable/apps/abritdesk.svg'),
+        ):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(str(source), str(destination))
+            destination.chmod(0o644)
+        (stage / 'usr/bin').mkdir(parents=True)
+        (stage / 'usr/bin/abritdesk').symlink_to('/usr/share/abritdesk/abritdesk')
+        metadata = stage / 'DEBIAN'
+        metadata.mkdir()
+        for name in ('postinst', 'prerm', 'postrm'):
+            shutil.copyfile(str(resources / 'DEBIAN' / name), str(metadata / name))
+            (metadata / name).chmod(0o755)
+        control = (resources / 'DEBIAN/control').read_text(encoding='utf-8')
+        (metadata / 'control').write_text(control.format(version=version, arch=arch), encoding='utf-8')
+        (metadata / 'control').chmod(0o644)
+        with (metadata / 'md5sums').open('w', encoding='utf-8') as checksums:
+            for path in sorted(stage.rglob('*')):
+                if path.is_file() and not path.is_symlink() and metadata not in path.parents:
+                    digest = hashlib.md5(path.read_bytes()).hexdigest()
+                    checksums.write(f'{digest}  {path.relative_to(stage).as_posix()}\n')
+        subprocess.check_call(['dpkg-deb', '--root-owner-group', '--build', str(stage), str(output)])
+    print(f'output location: {output}')
+
+
 def build_flutter_deb(version, features):
+    if 'drm' not in features.split(','):
+        if not skip_cargo:
+            system2(f'cargo build --locked --features {features} --lib --release')
+            ffi_bindgen_function_refactor()
+        os.chdir('flutter')
+        system2(f'flutter build linux --release --build-name {version}')
+        build_abrit_deb(version, flutter_build_dir)
+        os.chdir('..')
+        return
     if not skip_cargo:
         system2(f'cargo build --locked --features {features} --lib --release')
         ffi_bindgen_function_refactor()
@@ -847,6 +908,12 @@ def assert_staged_binary_is_drm():
 
 
 def build_deb_from_folder(version, binary_folder, want_drm=False):
+    bundle = Path(binary_folder)
+    if (bundle / 'abritdesk').is_file() and (bundle / 'lib/librustdesk.so').is_file():
+        if want_drm:
+            raise ValueError('AbritDesk native packaging does not support --drm: the runtime uses stock RustDesk paths')
+        build_abrit_deb(version, binary_folder)
+        return
     os.chdir('flutter')
     system2('mkdir -p tmpdeb/usr/bin/')
     system2('mkdir -p tmpdeb/usr/share/rustdesk')
@@ -945,13 +1012,10 @@ def build_flutter_dmg(version, features):
     # FLUTTER_XCODE_* env vars are forwarded to xcodebuild as build settings.
     mac_arch = 'arm64' if platform.machine().lower() in ('arm64', 'aarch64') else 'x86_64'
     system2(
-        f'FLUTTER_XCODE_ARCHS={mac_arch} FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --release')
-    system2('cp -rf ../target/release/service ./build/macos/Build/Products/Release/RustDesk.app/Contents/MacOS/')
-    '''
+        f'FLUTTER_XCODE_ARCHS={mac_arch} FLUTTER_XCODE_ONLY_ACTIVE_ARCH=YES flutter build macos --release --build-name {version}')
+    system2('cp -rf ../target/release/service ./build/macos/Build/Products/Release/AbritDesk.app/Contents/MacOS/')
     system2(
-        "create-dmg --volname \"RustDesk Installer\" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon RustDesk.app 200 190 --hide-extension RustDesk.app rustdesk.dmg ./build/macos/Build/Products/Release/RustDesk.app")
-    os.rename("rustdesk.dmg", f"../rustdesk-{version}.dmg")
-    '''
+        f'create-dmg --volname "AbritDesk Installer" --window-pos 200 120 --window-size 800 400 --icon-size 100 --app-drop-link 600 185 --icon AbritDesk.app 200 190 --hide-extension AbritDesk.app ../abritdesk-{version}-macos-{mac_arch}.dmg ./build/macos/Build/Products/Release/AbritDesk.app')
     os.chdir("..")
 
 
@@ -1014,6 +1078,9 @@ def main():
             feats = ','.join(get_features(args))
         print(feats)
         return
+
+    if args.drm and args.flutter:
+        parser.error('AbritDesk native packaging does not support --drm: the runtime uses stock RustDesk paths')
 
     if os.path.exists(exe_path):
         os.unlink(exe_path)

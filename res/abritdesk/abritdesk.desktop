@@ -1,0 +1,18 @@
+[Desktop Entry]
+Name=AbritDesk
+GenericName=Remote Desktop
+Comment=AbritDesk Remote Desktop
+Exec=abritdesk %u
+MimeType=x-scheme-handler/rustdesk;
+Icon=abritdesk
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Network;RemoteAccess;GTK;
+Keywords=remote-control;remote-desktop;
+Actions=new-window;
+StartupWMClass=abritdesk
+
+[Desktop Action new-window]
+Name=Open a New Window
+Exec=abritdesk %u

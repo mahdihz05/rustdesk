@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable abritdesk.service
+    if [ -x /usr/sbin/policy-rc.d ]; then
+        /usr/sbin/policy-rc.d abritdesk start || exit 0
+    fi
+    systemctl restart abritdesk.service
+fi
