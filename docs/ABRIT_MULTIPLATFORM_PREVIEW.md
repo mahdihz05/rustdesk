@@ -1,5 +1,28 @@
 # AbritDesk 1.0.0 Multiplatform Preview
 
+## Verified Build And Publication
+
+- Source: `d01043acad2dde0b84650512517658130aac7de6`.
+- Build: https://github.com/mahdihz05/rustdesk/actions/runs/38694937223
+  completed with `success` on its first attempt.
+- Release: https://github.com/mahdihz05/rustdesk/releases/tag/abritdesk-v1.0.0-multiplatform-preview.1
+  is public, marked prerelease, and contains all seven packages plus
+  `SHA256SUMS` and `release-manifest.json`.
+- Both macOS jobs, both Linux jobs, all three Android native jobs, universal APK
+  assembly, Windows packaging/acceptance, and aggregate publication succeeded.
+- Actual Linux artifacts were independently downloaded and extracted. Package
+  version/name, ELF architectures, payload checksums, launchers and service paths
+  were checked for both architectures. x64 dependency resolution found no
+  missing libraries in the test WSL environment; isolated `--version` returned
+  `1.0.0` with exit code zero. No host package or service was installed.
+- Linux x64 DEB SHA-256:
+  `095f793f66d8d52863d01041422cdd7d1b5bb5ce8021e54b15b209a5c2b00545`.
+- Linux ARM64 DEB SHA-256:
+  `6405d6d594cc40cf2e69b247028ddfc2bf7dbea4ab1e4f9be19b216a30703a5d`.
+
+macOS/Android device operation, ARM64 Linux execution, and public end-to-end
+desktop connectivity are not established by these packaging checks.
+
 ## Scope
 
 The `release-packages` input of Flutter Tag Build builds fresh Windows x64
